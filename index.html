@@ -10,11 +10,9 @@
         html, body {
             width: 100%;
             height: 100%;
-            /* 100dvh = dynamic viewport height, fixes mobile address bar */
             height: 100dvh;
             overflow: hidden;
             touch-action: manipulation;
-            /* LIGHT BLUE: confirms new file loaded on phone */
             background-color: #e8f4fd;
         }
 
@@ -36,11 +34,13 @@
         .image-container {
             position: absolute;
             display: none;
+            overflow: hidden;   /* clips rotated image to cell bounds */
         }
 
         .image-container img {
             border: 2px solid #333;
             display: block;
+            transform-origin: center center;
         }
 
         #showLabel {
@@ -113,48 +113,112 @@
     // ============================================================
 
     const GRID_LINES       = 4;
-    const GRID_COLS        = GRID_LINES + 1;   // 5
-    const GRID_ROWS        = GRID_LINES + 1;   // 5
+    const GRID_COLS        = GRID_LINES + 1;
+    const GRID_ROWS        = GRID_LINES + 1;
     const SHOW_SINGLE_MS   = 1000;
     const GAP_BEFORE_PAIR  = 500;
     const CORRECT_FLASH_MS = 3000;
     const INCORRECT_MS     = 3000;
     const WRONG_IMG_MS     = 500;
-    const IMG_PAD          = 6;   // px padding inside each cell
+    const IMG_PAD          = 4;
+    const ASPECT_W         = 16;
+    const ASPECT_H         = 9;
 
-    let W, H, cellW, cellH, imgW, imgH;
+    let W, H, cellW, cellH;
+    let imgW, imgH;       // rendered size of img element
+    let doRotate = false; // true when cell is portrait → rotate image 90°
 
     function recalc() {
-        // Use the container's actual pixel size, NOT vh/vw
         let container = document.getElementById("gameContainer");
         W = container.clientWidth;
         H = container.clientHeight;
-
         cellW = W / GRID_COLS;
         cellH = H / GRID_ROWS;
 
-        // Fit 16:9 image inside cell with padding
         let maxW = cellW - IMG_PAD * 2;
         let maxH = cellH - IMG_PAD * 2;
-        if (maxW / 16 * 9 <= maxH) {
-            imgW = Math.floor(maxW);
-            imgH = Math.floor(maxW / 16 * 9);
+
+        // Is the cell portrait? (taller than wide)
+        // If so, rotate the 16:9 image 90° so it becomes 9:16 fitting a tall cell
+        doRotate = (cellH > cellW);
+
+        if (doRotate) {
+            // Image will be rotated 90°, so its visual width becomes its rendered height
+            // Fit 9:16 (rotated 16:9) into maxW x maxH
+            // rendered img dims before rotation: we draw it as ASPECT_H wide, ASPECT_W tall
+            // then rotate — visually it becomes ASPECT_W wide, ASPECT_H tall
+            // We want visual width <= maxW and visual height <= maxH
+            // visual width  = rendered imgH  (after 90° rotation)
+            // visual height = rendered imgW  (after 90° rotation)
+            // So: imgH <= maxW, imgW <= maxH
+            // Keep 16:9 ratio: imgW/imgH = 16/9
+            // From imgH <= maxW: imgW = imgH * 16/9 <= maxW * 16/9
+            // From imgW <= maxH: imgH = imgW * 9/16 <= maxH * 9/16
+            let fromW = maxW;                          // imgH = maxW → imgW = maxW*16/9
+            let fromH = maxH;                          // imgW = maxH → imgH = maxH*9/16
+            let candidate1W = Math.floor(fromW * ASPECT_W / ASPECT_H);
+            let candidate1H = Math.floor(fromW);
+            let candidate2W = Math.floor(fromH);
+            let candidate2H = Math.floor(fromH * ASPECT_H / ASPECT_W);
+            // pick whichever fits within both constraints
+            if (candidate1W <= maxH) {
+                imgW = candidate1W;
+                imgH = candidate1H;
+            } else {
+                imgW = candidate2W;
+                imgH = candidate2H;
+            }
         } else {
-            imgH = Math.floor(maxH);
-            imgW = Math.floor(maxH / 9 * 16);
+            // Landscape cell — normal fit, no rotation needed
+            if (maxW / ASPECT_W * ASPECT_H <= maxH) {
+                imgW = Math.floor(maxW);
+                imgH = Math.floor(maxW / ASPECT_W * ASPECT_H);
+            } else {
+                imgH = Math.floor(maxH);
+                imgW = Math.floor(maxH / ASPECT_H * ASPECT_W);
+            }
         }
 
-        // Resize canvas to match container
         let canvas    = document.getElementById("gridCanvas");
         canvas.width  = W;
         canvas.height = H;
 
-        // Scale fonts with cell size
         let fs = Math.max(9, Math.floor(Math.min(cellW, cellH) / 7));
         document.getElementById("showLabel").style.fontSize  = fs + "px";
         document.getElementById("labelBelow").style.fontSize = fs + "px";
         document.getElementById("feedback").style.fontSize   = Math.max(22, fs * 2) + "px";
         document.getElementById("feedback").style.minWidth   = Math.floor(W * 0.35) + "px";
+    }
+
+    // Apply correct size + rotation to an image element
+    function styleImg(imgEl) {
+        imgEl.width  = imgW;
+        imgEl.height = imgH;
+        if (doRotate) {
+            imgEl.style.transform = "rotate(90deg)";
+        } else {
+            imgEl.style.transform = "none";
+        }
+    }
+
+    // Position container div centered on grid cell
+    // Container size = visual footprint of the (possibly rotated) image
+    function placeAt(id, idx) {
+        let c   = getCenter(idx);
+        let el  = document.getElementById(id);
+        let img = el.querySelector("img");
+
+        styleImg(img);
+
+        // Visual dimensions after rotation
+        let visW = doRotate ? imgH : imgW;
+        let visH = doRotate ? imgW : imgH;
+
+        // Container sized to visual footprint
+        el.style.width  = visW + "px";
+        el.style.height = visH + "px";
+        el.style.left   = (c.x - visW / 2) + "px";
+        el.style.top    = (c.y - visH / 2) + "px";
     }
 
     function getCenter(idx) {
@@ -175,8 +239,7 @@
     let rightIdx  = centerIdx + 1;
 
     function drawGrid() {
-        let canvas = document.getElementById("gridCanvas");
-        let ctx    = canvas.getContext("2d");
+        let ctx = document.getElementById("gridCanvas").getContext("2d");
         ctx.clearRect(0, 0, W, H);
         ctx.strokeStyle = "#000000";
         ctx.lineWidth   = 1;
@@ -188,16 +251,6 @@
             let y = H * i / (GRID_LINES + 1);
             ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
         }
-    }
-
-    function placeAt(id, idx) {
-        let c   = getCenter(idx);
-        let el  = document.getElementById(id);
-        let img = el.querySelector("img");
-        img.width  = imgW;
-        img.height = imgH;
-        el.style.left = (c.x - imgW / 2) + "px";
-        el.style.top  = (c.y - imgH / 2) + "px";
     }
 
     function speak(text) {
@@ -236,7 +289,7 @@
     async function phaseOne() {
         gameActive = false;
         clickPhase = 0;
-        recalc();   // fresh dimensions every round
+        recalc();
 
         let i1 = rnd(IMAGE_URLS.length);
         let i2 = rnd(IMAGE_URLS.length);
@@ -265,7 +318,6 @@
         drawGrid();
         await sleep(GAP_BEFORE_PAIR);
 
-        // Pair
         let leftFile, rightFile;
         if (Math.random() < 0.5) {
             leftFile = IMAGE_URLS[i2]; rightFile = IMAGE_URLS[i1]; correctSide = "right";
@@ -285,7 +337,6 @@
         gameActive = true;
     }
 
-    // ---- Unified tap/click handler ----
     function handleTap(clientX, clientY) {
         if (!gameActive) return;
 
@@ -309,8 +360,7 @@
                 drawGrid();
                 showFeedback("WRONG\nIMAGE");
                 sleep(WRONG_IMG_MS).then(() => {
-                    hideFeedback(); drawGrid();
-                    sleep(300).then(phaseOne);
+                    hideFeedback(); drawGrid(); sleep(300).then(phaseOne);
                 });
             } else {
                 let keepEl = side === "left" ? leftEl  : rightEl;
@@ -351,30 +401,24 @@
                 drawGrid();
                 showFeedback("WRONG");
                 sleep(INCORRECT_MS).then(() => {
-                    hideFeedback(); drawGrid();
-                    sleep(300).then(phaseOne);
+                    hideFeedback(); drawGrid(); sleep(300).then(phaseOne);
                 });
             }
         }
     }
 
-    // Mouse
     document.addEventListener("click", e => handleTap(e.clientX, e.clientY));
-
-    // Touch (mobile) — touchend for reliable single tap
     document.addEventListener("touchend", e => {
         e.preventDefault();
         let t = e.changedTouches[0];
         handleTap(t.clientX, t.clientY);
     }, { passive: false });
 
-    // Resize + orientation
     window.addEventListener("resize", () => { recalc(); drawGrid(); });
     window.addEventListener("orientationchange", () => {
         setTimeout(() => { recalc(); drawGrid(); }, 350);
     });
 
-    // Start
     recalc();
     drawGrid();
     phaseOne();
