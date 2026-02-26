@@ -34,8 +34,6 @@
         "Red-necked Phalarope",
         "Red Phalarope"
     ];
-    // Audio files must be in the "audio/" folder of your repo,
-    // named exactly as listed here (matching IMAGE_NAMES index).
     const AUDIO_FILES = [
         "audio/California-Sheephead-Juvenile.mp3",
         "audio/California-Sheephead-Male.mp3",
@@ -47,11 +45,11 @@
     // ============================================================
 
     const GRID_LINES       = 4;
-    const GRID_COLS        = GRID_LINES + 1;
-    const GRID_ROWS        = GRID_LINES + 1;
+    const GRID_COLS        = GRID_LINES + 1;   // 5
+    const GRID_ROWS        = GRID_LINES + 1;   // 5
     const SHOW_SINGLE_MS   = 1000;
     const GAP_BEFORE_PAIR  = 500;
-    const CORRECT_FLASH_MS = 3000;
+    const CORRECT_FLASH_MS = 1500;  // minimum display after audio ends
     const INCORRECT_MS     = 3000;
     const WRONG_IMG_MS     = 500;
     const IMG_PAD          = 6;
@@ -65,17 +63,20 @@
 
     let loadedImages = [];
     let clickPhase = 0, correctRegion = 0, correctImgName = "";
-    let correctImgIndex = 0;   // <-- track index for audio lookup
+    let correctImgIndex = 0;
     let correctSide = "", gameActive = false;
-    let slots   = { single:null, left:null, right:null };
-    let slotImg = { single:null, left:null, right:null };
-    let slotVis = { single:false, left:false, right:false };
+    let slots   = { single:null, left:null, right:null, big:null };
+    let slotImg = { single:null, left:null, right:null, big:null };
+    let slotVis = { single:false, left:false, right:false, big:false };
     let labelVisible=false, labelText="", labelRegion=0;
-    let nameBelowVisible=false, nameBelowText="", nameBelowSlot="";
+    let nameBelowVisible=false, nameBelowText="";
     let feedbackVisible=false, feedbackText="";
 
-    let currentAudio = null;   // <-- track playing audio object
+    let currentAudio = null;
 
+    // -------------------------------------------------------
+    // LAYOUT
+    // -------------------------------------------------------
     function setupLayout() {
         let pw = window.innerWidth;
         let ph = window.innerHeight;
@@ -131,26 +132,44 @@
         return (row-1)*GRID_COLS+col;
     }
 
-    let centerIdx = ((Math.ceil(GRID_ROWS/2)-1)*GRID_COLS)+Math.ceil(GRID_COLS/2);
-    let leftIdx   = centerIdx - 1;
-    let rightIdx  = centerIdx + 1;
+    // Grid center indices (1-based, 5x5 grid)
+    let centerIdx = ((Math.ceil(GRID_ROWS/2)-1)*GRID_COLS)+Math.ceil(GRID_COLS/2); // cell 13
+    let leftIdx   = centerIdx - 1;   // cell 12
+    let rightIdx  = centerIdx + 1;   // cell 14
 
     function makeSlot(idx) {
         let c = getCenter(idx);
         return { x:Math.floor(c.x-imgW/2), y:Math.floor(c.y-imgH/2), w:imgW, h:imgH };
     }
 
+    // Build a rect that covers the central 3x3 block of cells (cols 2-4, rows 2-4)
+    // leaving the bottom row of that block free for the label
+    function makeBigSlot() {
+        // Central 3 columns: col 2,3,4 → x from cellW to 4*cellW
+        // Central 3 rows:    row 2,3,4 → y from cellH to 4*cellH
+        // Reserve bottom ~1 cell height for label, so image uses top 2.5 rows
+        let pad = 8;
+        let x = cellW + pad;
+        let y = cellH + pad;
+        let w = cellW * 3 - pad * 2;
+        let h = cellH * 2.5 - pad * 2;    // ~2.5 rows tall for image
+        return { x:Math.floor(x), y:Math.floor(y), w:Math.floor(w), h:Math.floor(h) };
+    }
+
+    // -------------------------------------------------------
+    // DRAWING
+    // -------------------------------------------------------
     function drawImg(img, r) {
         ctx.save();
-        ctx.beginPath(); ctx.rect(r.x,r.y,r.w,r.h); ctx.clip();
+        ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.clip();
         ctx.drawImage(img, r.x, r.y, r.w, r.h);
         ctx.restore();
         ctx.strokeStyle="#333"; ctx.lineWidth=2;
-        ctx.strokeRect(r.x,r.y,r.w,r.h);
+        ctx.strokeRect(r.x, r.y, r.w, r.h);
     }
 
-    function drawLabel(text, cx, cy, bg, fg) {
-        let fs = Math.max(12, Math.floor(Math.min(cellW,cellH)/5));
+    function drawLabel(text, cx, cy, bg, fg, fsOverride) {
+        let fs = fsOverride || Math.max(12, Math.floor(Math.min(cellW,cellH)/5));
         ctx.font = "bold "+fs+"px Arial";
         let tw=ctx.measureText(text).width, pad=8;
         let bw=tw+pad*2, bh=fs+pad*2;
@@ -187,6 +206,7 @@
         ctx.fillStyle=bgColor;
         ctx.fillRect(0,0,GW,GH);
 
+        // Grid lines
         ctx.strokeStyle="#000"; ctx.lineWidth=1;
         for(let i=1;i<=GRID_LINES;i++){
             let x=GW*i/(GRID_LINES+1);
@@ -197,34 +217,52 @@
             ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(GW,y);ctx.stroke();
         }
 
+        // Normal small slots
         ["single","left","right"].forEach(k=>{
             if(slotVis[k]&&slotImg[k]&&slots[k]) drawImg(slotImg[k],slots[k]);
         });
+
+        // Big central 3x3 slot (correct answer reveal)
+        if(slotVis.big && slotImg.big && slots.big) {
+            drawImg(slotImg.big, slots.big);
+        }
 
         if(labelVisible){
             let c=getCenter(labelRegion);
             drawLabel(labelText,c.x,c.y,"rgba(210,210,210,0.95)","#000");
         }
 
-        if(nameBelowVisible&&slots[nameBelowSlot]){
-            let s=slots[nameBelowSlot];
-            drawLabel(nameBelowText,s.x+s.w/2,s.y+s.h+20,
-                      "rgba(60,180,60,0.97)","#fff");
+        // Name label below the big image, centred in the 3x3 block
+        if(nameBelowVisible && slots.big){
+            let s = slots.big;
+            // Centre x of the 3-column block
+            let cx = cellW + cellW * 1.5;   // midpoint of cols 2-4
+            // y = bottom of image + a bit of margin
+            let cy = s.y + s.h + cellH * 0.25;
+            let fs = Math.max(14, Math.floor(cellH / 4));
+            drawLabel(nameBelowText, cx, cy, "rgba(60,180,60,0.97)", "#fff", fs);
         }
 
         if(feedbackVisible) drawFeedback(feedbackText);
     }
 
-    // ---- AUDIO: plays the mp3 for the correct image ----
+    // -------------------------------------------------------
+    // AUDIO — returns a Promise that resolves when mp3 ends
+    // (or immediately on error / file missing)
+    // -------------------------------------------------------
     function playAudio(imgIndex) {
-        if (currentAudio) {
-            currentAudio.pause();
-            currentAudio.currentTime = 0;
-        }
-        let src = AUDIO_FILES[imgIndex];
-        if (!src) return;
-        currentAudio = new Audio(src);
-        currentAudio.play().catch(()=>{ /* autoplay blocked silently */ });
+        return new Promise((resolve) => {
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+            }
+            let src = AUDIO_FILES[imgIndex];
+            if (!src) { resolve(); return; }
+            currentAudio = new Audio(src);
+            currentAudio.onended  = resolve;
+            currentAudio.onerror  = resolve;   // missing file → keep going
+            currentAudio.play().catch(resolve); // autoplay blocked → keep going
+        });
     }
 
     function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
@@ -239,21 +277,28 @@
         });
     }
 
+    // -------------------------------------------------------
+    // GAME PHASES
+    // -------------------------------------------------------
     async function phaseOne(){
         gameActive=false; clickPhase=0;
         setupLayout();
 
+        // Hide big slot
+        slotVis.big = false; slotImg.big = null; slots.big = null;
+        nameBelowVisible = false;
+
         let i1=rnd(IMAGE_URLS.length), i2=rnd(IMAGE_URLS.length);
         while(i2===i1) i2=rnd(IMAGE_URLS.length);
 
-        correctImgIndex = i1;                   // <-- store index
+        correctImgIndex = i1;
         correctImgName  = IMAGE_NAMES[i1];
         correctRegion   = Math.floor(Math.random()*GRID_ROWS*GRID_COLS)+1;
 
         slots.single=makeSlot(centerIdx); slotImg.single=loadedImages[i1];
         slotVis.single=true; slotVis.left=slotVis.right=false;
         labelText=correctImgName; labelRegion=correctRegion;
-        labelVisible=true; nameBelowVisible=false; feedbackVisible=false;
+        labelVisible=true; feedbackVisible=false;
         render();
         await sleep(SHOW_SINGLE_MS);
 
@@ -276,6 +321,34 @@
         return r&&gx>=r.x&&gx<=r.x+r.w&&gy>=r.y&&gy<=r.y+r.h;
     }
 
+    async function handleCorrectLocation() {
+        // 1. Hide the two choice images
+        slotVis.left = false; slotVis.right = false;
+
+        // 2. Show correct image large in central 3x3 block
+        slots.big  = makeBigSlot();
+        slotImg.big = loadedImages[correctImgIndex];
+        slotVis.big = true;
+
+        // 3. Show name label below big image
+        nameBelowText    = correctImgName;
+        nameBelowVisible = true;
+        render();
+
+        // 4. Play audio and WAIT for it to finish
+        await playAudio(correctImgIndex);
+
+        // 5. Hold the display a bit longer after audio ends
+        await sleep(CORRECT_FLASH_MS);
+
+        // 6. Clean up and start next round
+        slotVis.big      = false;
+        nameBelowVisible = false;
+        render();
+        await sleep(300);
+        phaseOne();
+    }
+
     function handleTap(px,py){
         if(!gameActive) return;
         let g=toGame(px,py);
@@ -293,8 +366,8 @@
                     feedbackVisible=false; render(); sleep(300).then(phaseOne);
                 });
             } else {
-                if(side==="left"){slotVis.right=false; nameBelowSlot="left";}
-                else             {slotVis.left=false;  nameBelowSlot="right";}
+                if(side==="left") slotVis.right=false;
+                else              slotVis.left=false;
                 render(); clickPhase=2; gameActive=true;
             }
         }
@@ -302,12 +375,7 @@
             gameActive=false;
             let region=getRegion(gx,gy);
             if(region===correctRegion){
-                nameBelowText=correctImgName; nameBelowVisible=true; render();
-                playAudio(correctImgIndex);          // <-- plays mp3
-                sleep(CORRECT_FLASH_MS).then(()=>{
-                    nameBelowVisible=false; slotVis.left=slotVis.right=false;
-                    render(); sleep(300).then(phaseOne);
-                });
+                handleCorrectLocation();   // async — plays audio then advances
             } else {
                 slotVis.left=slotVis.right=false;
                 feedbackText="WRONG"; feedbackVisible=true; render();
