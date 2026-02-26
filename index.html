@@ -21,24 +21,24 @@
     const IMAGE_URLS = [
         "images/California-Sheephead-Juvenile.jpg",
         "images/California-Sheephead-Male.jpg",
-        "images/Garabaldi-Tiny.jpg",
         "images/Garibaldi-Juvenile.jpg",
+        "images/Garibaldi-Tiny.jpg",
         "images/Red-neck-Phalarope.jpg",
         "images/Red-Phalarope.jpg"
     ];
     const IMAGE_NAMES = [
         "California Sheephead Juvenile",
         "California Sheephead Male",
-        "Garibaldi Tiny",
         "Garibaldi Juvenile",
+        "Garibaldi Tiny",
         "Red-necked Phalarope",
         "Red Phalarope"
     ];
     const AUDIO_FILES = [
         "audio/California-Sheephead-Juvenile.mp3",
         "audio/California-Sheephead-Male.mp3",
-        "audio/Garibaldi-Tiny.mp3",
         "audio/Garibaldi-Juvenile.mp3",
+        "audio/Garibaldi-Tiny.mp3",
         "audio/Red-Neck-Phalarope.mp3",
         "audio/Red-Phalarope.mp3"
     ];
@@ -145,24 +145,20 @@
     }
 
     // -------------------------------------------------------
-    // BIG SLOT: image fills rows 2-4, cols 2-4 (aspect-preserved).
-    // Scale fits to the FULL box with NO pad reduction so the
-    // limiting dimension truly touches all 3 cell-heights/widths.
-    // Label sits in the separate row 5, cols 2-4.
+    // BIG SLOT: cols 2-4 x rows 2-4 (aspect-preserved, no pad
+    // in scale so limiting dimension fills exactly 3 cells).
+    // Label sits in row 5, cols 2-4.
     // -------------------------------------------------------
     function makeBigSlot(img) {
-        // Bounding box: cols 2-4, rows 2-4
         let boxX = cellW;
         let boxY = cellH;
         let boxW = cellW * 3;
         let boxH = cellH * 3;
 
-        // Natural image dimensions
         let iw = img.naturalWidth  || img.width  || boxW;
         let ih = img.naturalHeight || img.height || boxH;
 
-        // Fit image to full box — NO pad in scale so limiting
-        // dimension fills exactly 3 cells
+        // No pad subtracted — limiting dimension fills exactly 3 cells
         let scale = Math.min(boxW / iw, boxH / ih);
         let dw = Math.floor(iw * scale);
         let dh = Math.floor(ih * scale);
@@ -174,11 +170,11 @@
         return { x:dx, y:dy, w:dw, h:dh };
     }
 
-    // Label zone: row 5, cols 2-4 (full 1-cell height x 3-cell width)
+    // Label zone: row 5, cols 2-4
     function getLabelZone() {
         return {
-            cx:    cellW + cellW * 1.5,   // horizontal centre of 3-col span
-            cy:    cellH * 4 + cellH * 0.5, // vertical centre of row 5
+            cx:    cellW * 2.5,             // horizontal centre of cols 2-4
+            cy:    cellH * 4.5,             // vertical centre of row 5
             zoneW: cellW * 3,
             zoneH: cellH
         };
@@ -196,7 +192,6 @@
         ctx.strokeRect(r.x, r.y, r.w, r.h);
     }
 
-    // Big image: already aspect-fitted, no clip needed
     function drawBigImg(img, r) {
         ctx.drawImage(img, r.x, r.y, r.w, r.h);
         ctx.strokeStyle="#333"; ctx.lineWidth=2;
@@ -218,7 +213,7 @@
         ctx.fillText(text, bx+pad, by+pad+fs*0.85);
     }
 
-    // Auto-shrinks font until text fits within maxW x maxH zone
+    // Auto-shrinks font to fit within the zone width
     function drawFittedLabel(text, cx, cy, maxW, maxH, bg, fg) {
         let pad = 10;
         let fs = Math.floor(maxH * 0.55);
@@ -279,7 +274,7 @@
             if(slotVis[k]&&slotImg[k]&&slots[k]) drawImg(slotImg[k],slots[k]);
         });
 
-        // Big image
+        // Big image (aspect-fitted, no clipping)
         if(bigVis && bigImg && bigSlot) {
             drawBigImg(bigImg, bigSlot);
         }
@@ -310,11 +305,18 @@
                 currentAudio.currentTime = 0;
             }
             let src = AUDIO_FILES[imgIndex];
+            console.log("Playing audio:", src);
             if (!src) { resolve(); return; }
             currentAudio = new Audio(src);
             currentAudio.onended = resolve;
-            currentAudio.onerror = resolve;
-            currentAudio.play().catch(resolve);
+            currentAudio.onerror = (e) => {
+                console.error("Audio error:", src, e);
+                resolve();
+            };
+            currentAudio.play().catch((e) => {
+                console.error("Play blocked:", src, e);
+                resolve();
+            });
         });
     }
 
@@ -372,7 +374,6 @@
     async function handleCorrectLocation() {
         slotVis.left=false; slotVis.right=false;
 
-        // Pass the loaded image so makeBigSlot can read naturalWidth/Height
         let img = loadedImages[correctImgIndex];
         bigSlot = makeBigSlot(img);
         bigImg  = img;
@@ -382,7 +383,6 @@
         nameBelowVisible = true;
         render();
 
-        // Wait for audio to finish, then hold briefly
         await playAudio(correctImgIndex);
         await sleep(CORRECT_FLASH_MS);
 
