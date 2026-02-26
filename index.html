@@ -6,18 +6,8 @@
     <title>Brain Training</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        html, body {
-            overflow: hidden;
-            touch-action: manipulation;
-        }
-
-        /* Default (landscape / desktop): fill screen normally */
-        #rotateWrap {
-            position: fixed;
-            top: 0; left: 0;
-        }
-
+        html, body { overflow: hidden; touch-action: manipulation; }
+        #rotateWrap { position: fixed; top: 0; left: 0; }
         #gameCanvas { display: block; }
     </style>
 </head>
@@ -29,14 +19,30 @@
 <script>
     // ============================================================
     const IMAGE_URLS = [
+        "images/California-Sheephead-Juvenile.jpg",
+        "images/California-Sheephead-Male.jpg",
+        "images/Garabaldi-juvenile.jpg",
         "images/Garabaldi-Tiny.jpg",
-        "images/Red-Phalarope.jpg",
-        "images/Red-neck-Phalarope.jpg"
+        "images/Red-neck-Phalarope.jpg",
+        "images/Red-Phalarope.jpg"
     ];
     const IMAGE_NAMES = [
+        "California Sheephead Juvenile",
+        "California Sheephead Male",
+        "Garibaldi Juvenile",
         "Garibaldi",
-        "Red Phalarope",
-        "Red-necked Phalarope"
+        "Red-necked Phalarope",
+        "Red Phalarope"
+    ];
+    // Audio files must be in the "audio/" folder of your repo,
+    // named exactly as listed here (matching IMAGE_NAMES index).
+    const AUDIO_FILES = [
+        "audio/California-Sheephead-Juvenile.mp3",
+        "audio/California-Sheephead-Male.mp3",
+        "audio/Garabaldi-juvenile.mp3",
+        "audio/Garabaldi-Tiny.mp3",
+        "audio/Red-neck-Phalarope.mp3",
+        "audio/Red-Phalarope.mp3"
     ];
     // ============================================================
 
@@ -54,12 +60,12 @@
     let ctx    = canvas.getContext("2d");
     let wrap   = document.getElementById("rotateWrap");
 
-    // GW, GH = game canvas dimensions, ALWAYS landscape (GW > GH)
     let GW, GH, cellW, cellH, imgW, imgH;
     let isPortrait, bgColor;
 
     let loadedImages = [];
     let clickPhase = 0, correctRegion = 0, correctImgName = "";
+    let correctImgIndex = 0;   // <-- track index for audio lookup
     let correctSide = "", gameActive = false;
     let slots   = { single:null, left:null, right:null };
     let slotImg = { single:null, left:null, right:null };
@@ -68,41 +74,27 @@
     let nameBelowVisible=false, nameBelowText="", nameBelowSlot="";
     let feedbackVisible=false, feedbackText="";
 
-    // -------------------------------------------------------
-    // SETUP: rotate entire wrapper if portrait, so game canvas
-    // always renders landscape. Touch coords converted accordingly.
-    // -------------------------------------------------------
+    let currentAudio = null;   // <-- track playing audio object
+
     function setupLayout() {
-        let sw = window.screen.width  || window.innerWidth;
-        let sh = window.screen.height || window.innerHeight;
         let pw = window.innerWidth;
         let ph = window.innerHeight;
-
         isPortrait = pw < ph;
         let isMobile = Math.min(pw, ph) < 600;
         bgColor = isMobile ? "#7ab8e8" : "#ffffff";
 
         if (isPortrait) {
-            // Game canvas = ph wide, pw tall (landscape dimensions)
-            GW = ph;
-            GH = pw;
-            canvas.width  = GW;
-            canvas.height = GH;
-
-            // Rotate wrapper -90deg around its top-left corner,
-            // then translate so it sits in top-left of screen
-            wrap.style.width     = GW + "px";
-            wrap.style.height    = GH + "px";
+            GW = ph; GH = pw;
+            canvas.width = GW; canvas.height = GH;
+            wrap.style.width  = GW + "px";
+            wrap.style.height = GH + "px";
             wrap.style.transformOrigin = "0 0";
-            wrap.style.transform =
-                "rotate(90deg) translateY(-" + pw + "px)";
+            wrap.style.transform = "rotate(90deg) translateY(-" + pw + "px)";
         } else {
-            GW = pw;
-            GH = ph;
-            canvas.width  = GW;
-            canvas.height = GH;
-            wrap.style.width     = GW + "px";
-            wrap.style.height    = GH + "px";
+            GW = pw; GH = ph;
+            canvas.width = GW; canvas.height = GH;
+            wrap.style.width  = GW + "px";
+            wrap.style.height = GH + "px";
             wrap.style.transformOrigin = "0 0";
             wrap.style.transform = "none";
         }
@@ -121,15 +113,8 @@
         }
     }
 
-    // Convert physical touch/click to canvas game coords
     function toGame(px, py) {
-        if (isPortrait) {
-            // Canvas rotated +90deg (translateY offset already in CSS)
-            // Inverse of rotate(90deg) translateY(-pw):
-            // game_x = py
-            // game_y = innerWidth - px
-            return { x: py, y: window.innerWidth - px };
-        }
+        if (isPortrait) return { x: py, y: window.innerWidth - px };
         return { x: px, y: py };
     }
 
@@ -230,16 +215,16 @@
         if(feedbackVisible) drawFeedback(feedbackText);
     }
 
-    function speak(text) {
-        if(!('speechSynthesis' in window)) return;
-        window.speechSynthesis.cancel();
-        let fixes={"sea bass":"see bhass","bass":"bhass","perch":"purch",
-                   "gar":"garr","soy":"soe","phalarope":"FAL-a-rope"};
-        Object.keys(fixes).sort((a,b)=>b.length-a.length).forEach(w=>
-            text=text.replace(new RegExp("\\b"+w+"\\b","gi"),fixes[w]));
-        let u=new SpeechSynthesisUtterance(text);
-        u.rate=0.9; u.volume=1;
-        window.speechSynthesis.speak(u);
+    // ---- AUDIO: plays the mp3 for the correct image ----
+    function playAudio(imgIndex) {
+        if (currentAudio) {
+            currentAudio.pause();
+            currentAudio.currentTime = 0;
+        }
+        let src = AUDIO_FILES[imgIndex];
+        if (!src) return;
+        currentAudio = new Audio(src);
+        currentAudio.play().catch(()=>{ /* autoplay blocked silently */ });
     }
 
     function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
@@ -261,8 +246,9 @@
         let i1=rnd(IMAGE_URLS.length), i2=rnd(IMAGE_URLS.length);
         while(i2===i1) i2=rnd(IMAGE_URLS.length);
 
-        correctImgName=IMAGE_NAMES[i1];
-        correctRegion=Math.floor(Math.random()*GRID_ROWS*GRID_COLS)+1;
+        correctImgIndex = i1;                   // <-- store index
+        correctImgName  = IMAGE_NAMES[i1];
+        correctRegion   = Math.floor(Math.random()*GRID_ROWS*GRID_COLS)+1;
 
         slots.single=makeSlot(centerIdx); slotImg.single=loadedImages[i1];
         slotVis.single=true; slotVis.left=slotVis.right=false;
@@ -317,7 +303,7 @@
             let region=getRegion(gx,gy);
             if(region===correctRegion){
                 nameBelowText=correctImgName; nameBelowVisible=true; render();
-                speak(correctImgName);
+                playAudio(correctImgIndex);          // <-- plays mp3
                 sleep(CORRECT_FLASH_MS).then(()=>{
                     nameBelowVisible=false; slotVis.left=slotVis.right=false;
                     render(); sleep(300).then(phaseOne);
