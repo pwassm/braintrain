@@ -22,28 +22,11 @@
             position: absolute;
             top: 0; left: 0;
         }
-        #feedback {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: rgba(255, 60, 60, 0.97);
-            color: white;
-            padding: 20px 30px;
-            border-radius: 10px;
-            font-weight: bold;
-            text-align: center;
-            white-space: pre-line;
-            display: none;
-            z-index: 300;
-            font-family: Arial, sans-serif;
-        }
     </style>
 </head>
 <body>
 <div id="gameContainer">
     <canvas id="gameCanvas"></canvas>
-    <div id="feedback"></div>
 </div>
 
 <script>
@@ -74,23 +57,23 @@
     let ctx    = canvas.getContext("2d");
 
     let W, H, cellW, cellH;
-    let doRotate;
-    // drawW/drawH = dimensions passed to ctx.drawImage (the raw pixel size before rotation)
-    // visW/visH   = visual footprint on screen after rotation
+    let doRotate, isMobile, bgColor;
     let drawW, drawH, visW, visH;
-    let isMobile, bgColor;
-
     let loadedImages = [];
+
     let clickPhase = 0, correctRegion = 0, correctImgName = "";
     let correctSide = "", nameLabelX = 0, nameLabelY = 0, gameActive = false;
 
-    let slots    = { single: null, left: null, right: null };
-    let slotImg  = { single: null, left: null, right: null };
-    let slotVis  = { single: false, left: false, right: false };
-    let labelVisible = false, labelText = "", labelX = 0, labelY = 0;
-    let nameBelowVisible = false, nameBelowText = "", nameBelowX = 0, nameBelowY = 0;
+    let slots   = { single: null, left: null, right: null };
+    let slotImg = { single: null, left: null, right: null };
+    let slotVis = { single: false, left: false, right: false };
 
-    // ---- Preload ----
+    // Label state
+    let labelVisible = false, labelText = "", labelRegion = 0;
+    let nameBelowVisible = false, nameBelowText = "", nameBelowSlot = "";
+    // Feedback
+    let feedbackVisible = false, feedbackText = "";
+
     function preloadImages(callback) {
         let loaded = 0;
         IMAGE_URLS.forEach((url, i) => {
@@ -102,42 +85,29 @@
         });
     }
 
-    // ---- Recalc dimensions ----
     function recalc() {
         W = document.getElementById("gameContainer").clientWidth;
         H = document.getElementById("gameContainer").clientHeight;
         canvas.width  = W;
         canvas.height = H;
-
         cellW = W / GRID_COLS;
         cellH = H / GRID_ROWS;
 
-        // Mobile = phone-sized screen
         isMobile = (Math.min(W, H) < 600);
         bgColor  = isMobile ? "#7ab8e8" : "#ffffff";
-
-        // Portrait cells (cellH > cellW): rotate 16:9 image 90°
-        // so long side of image aligns with long side of cell
         doRotate = (cellH > cellW);
 
         let maxW = cellW - IMG_PAD * 2;
         let maxH = cellH - IMG_PAD * 2;
 
         if (doRotate) {
-            // After 90° rotation:
-            //   image drawn as (drawW x drawH) appears as (drawH x drawW) on screen
-            //   visW = drawH, visH = drawW
-            // We want visW <= maxW and visH <= maxH
-            // Keep 16:9: drawW/drawH = 16/9 → drawW = drawH*16/9
-            // visW = drawH <= maxW  → drawH <= maxW
-            // visH = drawW <= maxH  → drawH*16/9 <= maxH → drawH <= maxH*9/16
+            // After 90° rotation: visW=drawH, visH=drawW
+            // Constrain: drawH<=maxW, drawW<=maxH, drawW/drawH=16/9
             drawH = Math.floor(Math.min(maxW, maxH * 9 / 16));
             drawW = Math.floor(drawH * 16 / 9);
-            visW  = drawH;   // visual width  = drawH after rotation
-            visH  = drawW;   // visual height = drawW after rotation
+            visW  = drawH;
+            visH  = drawW;
         } else {
-            // Normal landscape: drawW x drawH, no rotation
-            // drawW <= maxW, drawH <= maxH, drawW/drawH = 16/9
             drawW = Math.floor(Math.min(maxW, maxH * 16 / 9));
             drawH = Math.floor(drawW * 9 / 16);
             visW  = drawW;
@@ -164,58 +134,103 @@
 
     function makeSlot(idx) {
         let c = getCenter(idx);
-        return {
-            x: Math.floor(c.x - visW / 2),
-            y: Math.floor(c.y - visH / 2),
-            w: visW,
-            h: visH
-        };
+        return { x: Math.floor(c.x - visW/2), y: Math.floor(c.y - visH/2), w: visW, h: visH };
     }
 
-    // ---- Draw image into rect, with optional 90° rotation ----
+    // ---- Draw image rotated into rect ----
     function drawImg(img, rect) {
         ctx.save();
-        // Clip to rect so image never bleeds outside cell
         ctx.beginPath();
         ctx.rect(rect.x, rect.y, rect.w, rect.h);
         ctx.clip();
-
         if (doRotate) {
-            // Move origin to center of rect
-            ctx.translate(rect.x + rect.w / 2, rect.y + rect.h / 2);
+            ctx.translate(rect.x + rect.w/2, rect.y + rect.h/2);
             ctx.rotate(Math.PI / 2);
-            // Draw image centered: drawW is long side, drawH is short side
-            // After rotation: drawW is vertical, drawH is horizontal — fills rect
-            ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+            ctx.drawImage(img, -drawW/2, -drawH/2, drawW, drawH);
         } else {
             ctx.drawImage(img, rect.x, rect.y, rect.w, rect.h);
         }
         ctx.restore();
-
-        // Border on top
-        ctx.strokeStyle = "#333333";
+        ctx.strokeStyle = "#333";
         ctx.lineWidth   = 2;
         ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
     }
 
+    // ---- Draw a label box, rotated 90° when doRotate ----
+    // cx, cy = center of label in screen coords
     function drawLabel(text, cx, cy, bg, fg) {
         let fs = Math.max(10, Math.floor(Math.min(cellW, cellH) / 6));
+
+        ctx.save();
+
+        if (doRotate) {
+            // rotate canvas 90° around the label center
+            ctx.translate(cx, cy);
+            ctx.rotate(Math.PI / 2);
+            ctx.translate(-cx, -cy);
+        }
+
         ctx.font = "bold " + fs + "px Arial";
-        let tw = ctx.measureText(text).width;
-        let pad = 7, bw = tw + pad*2, bh = fs + pad*2;
-        let bx = Math.max(2, Math.min(cx - bw/2, W - bw - 2));
-        let by = Math.max(2, Math.min(cy - bh/2, H - bh - 2));
+        let tw  = ctx.measureText(text).width;
+        let pad = 7;
+        let bw  = tw + pad * 2;
+        let bh  = fs + pad * 2;
+        let bx  = Math.max(2, cx - bw / 2);
+        let by  = Math.max(2, cy - bh / 2);
+
         ctx.fillStyle = bg;
         ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 4);
         else ctx.rect(bx, by, bw, bh);
         ctx.fill();
+
         ctx.fillStyle = fg;
         ctx.fillText(text, bx + pad, by + pad + fs * 0.85);
+
+        ctx.restore();
+    }
+
+    // ---- Draw feedback text, rotated when doRotate ----
+    function drawFeedback(text) {
+        let fs  = Math.max(20, Math.floor(Math.min(W, H) / 10));
+        let cx  = W / 2;
+        let cy  = H / 2;
+
+        ctx.save();
+
+        if (doRotate) {
+            ctx.translate(cx, cy);
+            ctx.rotate(Math.PI / 2);
+            ctx.translate(-cx, -cy);
+        }
+
+        ctx.font = "bold " + fs + "px Arial";
+        let lines = text.split("\n");
+        let maxTw = 0;
+        lines.forEach(l => { let m = ctx.measureText(l).width; if (m > maxTw) maxTw = m; });
+        let pad = 20;
+        let bw  = maxTw + pad * 2;
+        let bh  = (fs + 8) * lines.length + pad * 2;
+        let bx  = cx - bw / 2;
+        let by  = cy - bh / 2;
+
+        ctx.fillStyle = "rgba(255,60,60,0.97)";
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 10);
+        else ctx.rect(bx, by, bw, bh);
+        ctx.fill();
+
+        ctx.fillStyle = "#ffffff";
+        lines.forEach((l, i) => {
+            let lx = cx - ctx.measureText(l).width / 2;
+            let ly = by + pad + fs * 0.85 + i * (fs + 8);
+            ctx.fillText(l, lx, ly);
+        });
+
+        ctx.restore();
     }
 
     function render() {
-        // Background
         ctx.fillStyle = bgColor;
         ctx.fillRect(0, 0, W, H);
 
@@ -237,13 +252,25 @@
                 drawImg(slotImg[k], slots[k]);
         });
 
-        // Region label
-        if (labelVisible)
-            drawLabel(labelText, labelX, labelY, "rgba(210,210,210,0.95)", "#000");
+        // Region label — centered in the correct region cell
+        if (labelVisible) {
+            let c = getCenter(labelRegion);
+            drawLabel(labelText, c.x, c.y, "rgba(210,210,210,0.95)", "#000000");
+        }
 
-        // Name below (correct answer)
-        if (nameBelowVisible)
-            drawLabel(nameBelowText, nameBelowX, nameBelowY, "rgba(60,180,60,0.97)", "#fff");
+        // Name below correct image — centered below the surviving image slot
+        if (nameBelowVisible) {
+            let s = slots[nameBelowSlot];
+            if (s) {
+                // position label centered below the image slot
+                let cx = s.x + s.w / 2;
+                let cy = s.y + s.h + (doRotate ? cellW * 0.15 : cellH * 0.15);
+                drawLabel(nameBelowText, cx, cy, "rgba(60,180,60,0.97)", "#ffffff");
+            }
+        }
+
+        // Feedback
+        if (feedbackVisible) drawFeedback(feedbackText);
     }
 
     function speak(text) {
@@ -262,15 +289,6 @@
         window.speechSynthesis.speak(u);
     }
 
-    function showFeedback(msg) {
-        let fb = document.getElementById("feedback");
-        fb.style.fontSize = Math.max(20, Math.floor(Math.min(W,H)/12)) + "px";
-        fb.textContent = msg;
-        fb.style.display = "block";
-    }
-    function hideFeedback() {
-        document.getElementById("feedback").style.display = "none";
-    }
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
     function rnd(n)    { return Math.floor(Math.random() * n); }
 
@@ -284,17 +302,17 @@
 
         correctImgName = IMAGE_NAMES[i1];
         correctRegion  = Math.floor(Math.random() * GRID_ROWS * GRID_COLS) + 1;
-        let lc = getCenter(correctRegion);
 
         slots.single   = makeSlot(centerIdx);
         slotImg.single = loadedImages[i1];
         slotVis.single = true;
-        slotVis.left = slotVis.right = false;
+        slotVis.left   = slotVis.right = false;
 
-        labelText = correctImgName;
-        labelX = lc.x; labelY = lc.y;
+        labelText    = correctImgName;
+        labelRegion  = correctRegion;
         labelVisible = true;
         nameBelowVisible = false;
+        feedbackVisible  = false;
 
         render();
         await sleep(SHOW_SINGLE_MS);
@@ -304,7 +322,6 @@
         render();
         await sleep(GAP_BEFORE_PAIR);
 
-        // Pair
         if (Math.random() < 0.5) {
             slotImg.left = loadedImages[i2]; slotImg.right = loadedImages[i1];
             correctSide = "right";
@@ -328,47 +345,56 @@
         if (!gameActive) return;
 
         if (clickPhase === 1) {
-            let hl = hitTest(px,py,slots.left);
-            let hr = hitTest(px,py,slots.right);
+            let hl = hitTest(px, py, slots.left);
+            let hr = hitTest(px, py, slots.right);
             if (!hl && !hr) return;
             gameActive = false;
             let side = hl ? "left" : "right";
 
             if (side !== correctSide) {
                 slotVis.left = slotVis.right = false;
-                render(); showFeedback("WRONG\nIMAGE");
-                sleep(WRONG_IMG_MS).then(()=>{hideFeedback();render();sleep(300).then(phaseOne);});
+                feedbackText = "WRONG\nIMAGE"; feedbackVisible = true;
+                render();
+                sleep(WRONG_IMG_MS).then(() => {
+                    feedbackVisible = false; render();
+                    sleep(300).then(phaseOne);
+                });
             } else {
-                if (side==="left") {
+                if (side === "left") {
                     slotVis.right = false;
-                    nameLabelX = slots.left.x  + slots.left.w/2;
-                    nameLabelY = slots.left.y  + slots.left.h + 18;
+                    nameBelowSlot = "left";
                 } else {
                     slotVis.left  = false;
-                    nameLabelX = slots.right.x + slots.right.w/2;
-                    nameLabelY = slots.right.y + slots.right.h + 18;
+                    nameBelowSlot = "right";
                 }
-                render(); clickPhase = 2; gameActive = true;
+                render();
+                clickPhase = 2; gameActive = true;
             }
         }
 
         else if (clickPhase === 2) {
             gameActive = false;
             let region = getRegion(px, py);
+
             if (region === correctRegion) {
-                nameBelowText = correctImgName;
-                nameBelowX = nameLabelX; nameBelowY = nameLabelY;
+                nameBelowText    = correctImgName;
                 nameBelowVisible = true;
-                render(); speak(correctImgName);
-                sleep(CORRECT_FLASH_MS).then(()=>{
-                    nameBelowVisible=false;
-                    slotVis.left=slotVis.right=false;
-                    render(); sleep(300).then(phaseOne);
+                render();
+                speak(correctImgName);
+                sleep(CORRECT_FLASH_MS).then(() => {
+                    nameBelowVisible = false;
+                    slotVis.left = slotVis.right = false;
+                    render();
+                    sleep(300).then(phaseOne);
                 });
             } else {
-                slotVis.left=slotVis.right=false;
-                render(); showFeedback("WRONG");
-                sleep(INCORRECT_MS).then(()=>{hideFeedback();render();sleep(300).then(phaseOne);});
+                slotVis.left = slotVis.right = false;
+                feedbackText = "WRONG"; feedbackVisible = true;
+                render();
+                sleep(INCORRECT_MS).then(() => {
+                    feedbackVisible = false; render();
+                    sleep(300).then(phaseOne);
+                });
             }
         }
     }
@@ -379,10 +405,12 @@
         handleTap(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
     }, { passive: false });
 
-    window.addEventListener("resize", ()=>{ recalc(); render(); });
-    window.addEventListener("orientationchange", ()=>{ setTimeout(()=>{ recalc(); render(); }, 350); });
+    window.addEventListener("resize", () => { recalc(); render(); });
+    window.addEventListener("orientationchange", () => {
+        setTimeout(() => { recalc(); render(); }, 350);
+    });
 
-    preloadImages(()=>{ recalc(); render(); phaseOne(); });
+    preloadImages(() => { recalc(); render(); phaseOne(); });
 </script>
 </body>
 </html>
