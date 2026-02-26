@@ -49,7 +49,7 @@
     const GRID_ROWS        = GRID_LINES + 1;   // 5
     const SHOW_SINGLE_MS   = 1000;
     const GAP_BEFORE_PAIR  = 500;
-    const CORRECT_FLASH_MS = 1500;  // minimum display after audio ends
+    const CORRECT_FLASH_MS = 1500;
     const INCORRECT_MS     = 3000;
     const WRONG_IMG_MS     = 500;
     const IMG_PAD          = 6;
@@ -86,14 +86,14 @@
 
         if (isPortrait) {
             GW = ph; GH = pw;
-            canvas.width = GW; canvas.height = GH;
+            canvas.width  = GW; canvas.height = GH;
             wrap.style.width  = GW + "px";
             wrap.style.height = GH + "px";
             wrap.style.transformOrigin = "0 0";
             wrap.style.transform = "rotate(90deg) translateY(-" + pw + "px)";
         } else {
             GW = pw; GH = ph;
-            canvas.width = GW; canvas.height = GH;
+            canvas.width  = GW; canvas.height = GH;
             wrap.style.width  = GW + "px";
             wrap.style.height = GH + "px";
             wrap.style.transformOrigin = "0 0";
@@ -132,7 +132,6 @@
         return (row-1)*GRID_COLS+col;
     }
 
-    // Grid center indices (1-based, 5x5 grid)
     let centerIdx = ((Math.ceil(GRID_ROWS/2)-1)*GRID_COLS)+Math.ceil(GRID_COLS/2); // cell 13
     let leftIdx   = centerIdx - 1;   // cell 12
     let rightIdx  = centerIdx + 1;   // cell 14
@@ -142,18 +141,22 @@
         return { x:Math.floor(c.x-imgW/2), y:Math.floor(c.y-imgH/2), w:imgW, h:imgH };
     }
 
-    // Build a rect that covers the central 3x3 block of cells (cols 2-4, rows 2-4)
-    // leaving the bottom row of that block free for the label
+    // Central 3x3 block (cols 2-4, rows 2-4).
+    // Image fills the top portion; a reserved strip at the bottom holds the label.
     function makeBigSlot() {
-        // Central 3 columns: col 2,3,4 → x from cellW to 4*cellW
-        // Central 3 rows:    row 2,3,4 → y from cellH to 4*cellH
-        // Reserve bottom ~1 cell height for label, so image uses top 2.5 rows
         let pad = 8;
-        let x = cellW + pad;
-        let y = cellH + pad;
+        let labelReserve = cellH * 0.45;
+        let x = cellW     + pad;
+        let y = cellH     + pad;
         let w = cellW * 3 - pad * 2;
-        let h = cellH * 2.5 - pad * 2;    // ~2.5 rows tall for image
-        return { x:Math.floor(x), y:Math.floor(y), w:Math.floor(w), h:Math.floor(h) };
+        let h = cellH * 3 - pad * 2 - labelReserve;
+        return {
+            x: Math.floor(x),
+            y: Math.floor(y),
+            w: Math.floor(w),
+            h: Math.floor(h),
+            labelReserve: labelReserve
+        };
     }
 
     // -------------------------------------------------------
@@ -222,7 +225,7 @@
             if(slotVis[k]&&slotImg[k]&&slots[k]) drawImg(slotImg[k],slots[k]);
         });
 
-        // Big central 3x3 slot (correct answer reveal)
+        // Big central 3x3 slot
         if(slotVis.big && slotImg.big && slots.big) {
             drawImg(slotImg.big, slots.big);
         }
@@ -232,14 +235,12 @@
             drawLabel(labelText,c.x,c.y,"rgba(210,210,210,0.95)","#000");
         }
 
-        // Name label below the big image, centred in the 3x3 block
-        if(nameBelowVisible && slots.big){
-            let s = slots.big;
-            // Centre x of the 3-column block
-            let cx = cellW + cellW * 1.5;   // midpoint of cols 2-4
-            // y = bottom of image + a bit of margin
-            let cy = s.y + s.h + cellH * 0.25;
-            let fs = Math.max(14, Math.floor(cellH / 4));
+        // Name label centred in the reserved strip below the big image
+        if(nameBelowVisible && slots.big) {
+            let s  = slots.big;
+            let cx = cellW + cellW * 1.5;               // centre of cols 2-4
+            let cy = s.y + s.h + s.labelReserve / 2;   // centre of reserved strip
+            let fs = Math.max(14, Math.floor(cellH / 3.5));
             drawLabel(nameBelowText, cx, cy, "rgba(60,180,60,0.97)", "#fff", fs);
         }
 
@@ -247,8 +248,7 @@
     }
 
     // -------------------------------------------------------
-    // AUDIO — returns a Promise that resolves when mp3 ends
-    // (or immediately on error / file missing)
+    // AUDIO — Promise resolves when mp3 ends (or on any error)
     // -------------------------------------------------------
     function playAudio(imgIndex) {
         return new Promise((resolve) => {
@@ -259,20 +259,20 @@
             let src = AUDIO_FILES[imgIndex];
             if (!src) { resolve(); return; }
             currentAudio = new Audio(src);
-            currentAudio.onended  = resolve;
-            currentAudio.onerror  = resolve;   // missing file → keep going
-            currentAudio.play().catch(resolve); // autoplay blocked → keep going
+            currentAudio.onended = resolve;
+            currentAudio.onerror = resolve;
+            currentAudio.play().catch(resolve);
         });
     }
 
-    function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
-    function rnd(n){return Math.floor(Math.random()*n);}
+    function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+    function rnd(n)   { return Math.floor(Math.random()*n); }
 
     function preloadImages(cb){
         let n=0;
         IMAGE_URLS.forEach((url,i)=>{
             let img=new Image();
-            img.onload=img.onerror=()=>{if(++n===IMAGE_URLS.length)cb();};
+            img.onload=img.onerror=()=>{ if(++n===IMAGE_URLS.length) cb(); };
             img.src=url; loadedImages[i]=img;
         });
     }
@@ -284,9 +284,8 @@
         gameActive=false; clickPhase=0;
         setupLayout();
 
-        // Hide big slot
-        slotVis.big = false; slotImg.big = null; slots.big = null;
-        nameBelowVisible = false;
+        slotVis.big=false; slotImg.big=null; slots.big=null;
+        nameBelowVisible=false;
 
         let i1=rnd(IMAGE_URLS.length), i2=rnd(IMAGE_URLS.length);
         while(i2===i1) i2=rnd(IMAGE_URLS.length);
@@ -317,36 +316,34 @@
         render(); clickPhase=1; gameActive=true;
     }
 
-    function hitTest(gx,gy,r){
-        return r&&gx>=r.x&&gx<=r.x+r.w&&gy>=r.y&&gy<=r.y+r.h;
-    }
-
     async function handleCorrectLocation() {
-        // 1. Hide the two choice images
-        slotVis.left = false; slotVis.right = false;
+        // Hide choice thumbnails
+        slotVis.left=false; slotVis.right=false;
 
-        // 2. Show correct image large in central 3x3 block
-        slots.big  = makeBigSlot();
+        // Show correct image large in central 3x3 block
+        slots.big   = makeBigSlot();
         slotImg.big = loadedImages[correctImgIndex];
         slotVis.big = true;
 
-        // 3. Show name label below big image
+        // Show name label in reserved strip below image
         nameBelowText    = correctImgName;
         nameBelowVisible = true;
         render();
 
-        // 4. Play audio and WAIT for it to finish
+        // Wait for audio to finish before advancing
         await playAudio(correctImgIndex);
 
-        // 5. Hold the display a bit longer after audio ends
+        // Brief hold after audio ends
         await sleep(CORRECT_FLASH_MS);
 
-        // 6. Clean up and start next round
-        slotVis.big      = false;
-        nameBelowVisible = false;
+        slotVis.big=false; nameBelowVisible=false;
         render();
         await sleep(300);
         phaseOne();
+    }
+
+    function hitTest(gx,gy,r){
+        return r&&gx>=r.x&&gx<=r.x+r.w&&gy>=r.y&&gy<=r.y+r.h;
     }
 
     function handleTap(px,py){
@@ -375,7 +372,7 @@
             gameActive=false;
             let region=getRegion(gx,gy);
             if(region===correctRegion){
-                handleCorrectLocation();   // async — plays audio then advances
+                handleCorrectLocation();
             } else {
                 slotVis.left=slotVis.right=false;
                 feedbackText="WRONG"; feedbackVisible=true; render();
@@ -392,12 +389,12 @@
         handleTap(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
     },{passive:false});
 
-    window.addEventListener("resize",()=>{setupLayout();render();});
+    window.addEventListener("resize",()=>{ setupLayout(); render(); });
     window.addEventListener("orientationchange",()=>{
-        setTimeout(()=>{setupLayout();render();},350);
+        setTimeout(()=>{ setupLayout(); render(); },350);
     });
 
-    preloadImages(()=>{setupLayout();render();phaseOne();});
+    preloadImages(()=>{ setupLayout(); render(); phaseOne(); });
 </script>
 </body>
 </html>
