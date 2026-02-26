@@ -21,25 +21,25 @@
     const IMAGE_URLS = [
         "images/California-Sheephead-Juvenile.jpg",
         "images/California-Sheephead-Male.jpg",
-        "images/Garabaldi-juvenile.jpg",
         "images/Garabaldi-Tiny.jpg",
+        "images/Garibaldi-Juvenile.jpg",
         "images/Red-neck-Phalarope.jpg",
         "images/Red-Phalarope.jpg"
     ];
     const IMAGE_NAMES = [
         "California Sheephead Juvenile",
         "California Sheephead Male",
+        "Garibaldi Tiny",
         "Garibaldi Juvenile",
-        "Garibaldi",
         "Red-necked Phalarope",
         "Red Phalarope"
     ];
     const AUDIO_FILES = [
         "audio/California-Sheephead-Juvenile.mp3",
         "audio/California-Sheephead-Male.mp3",
-        "audio/Garabaldi-juvenile.mp3",
-        "audio/Garabaldi-Tiny.mp3",
-        "audio/Red-neck-Phalarope.mp3",
+        "audio/Garibaldi-Tiny.mp3",
+        "audio/Garibaldi-Juvenile.mp3",
+        "audio/Red-Neck-Phalarope.mp3",
         "audio/Red-Phalarope.mp3"
     ];
     // ============================================================
@@ -68,7 +68,7 @@
     let slots   = { single:null, left:null, right:null };
     let slotImg = { single:null, left:null, right:null };
     let slotVis = { single:false, left:false, right:false };
-    let bigSlot = null;   // { x, y, w, h } — the 3x3 image rect (aspect-fitted)
+    let bigSlot = null;
     let bigImg  = null;
     let bigVis  = false;
     let labelVisible=false, labelText="", labelRegion=0;
@@ -145,39 +145,42 @@
     }
 
     // -------------------------------------------------------
-    // BIG SLOT: image fills rows 1-3 cols 2-4 (aspect-preserved),
-    // label fills row 4 cols 2-4 (full 1-cell height, 3-cell wide).
+    // BIG SLOT: image fills rows 2-4, cols 2-4 (aspect-preserved).
+    // Scale fits to the FULL box with NO pad reduction so the
+    // limiting dimension truly touches all 3 cell-heights/widths.
+    // Label sits in the separate row 5, cols 2-4.
     // -------------------------------------------------------
     function makeBigSlot(img) {
-        let pad = 4;
+        // Bounding box: cols 2-4, rows 2-4
+        let boxX = cellW;
+        let boxY = cellH;
+        let boxW = cellW * 3;
+        let boxH = cellH * 3;
 
-        // Bounding box = central 3 cols × 3 rows
-        let boxX = cellW;           // left edge of col 2
-        let boxY = cellH;           // top edge of row 2
-        let boxW = cellW * 3;       // 3 columns wide
-        let boxH = cellH * 3;       // 3 rows tall  (rows 2-4)
+        // Natural image dimensions
+        let iw = img.naturalWidth  || img.width  || boxW;
+        let ih = img.naturalHeight || img.height || boxH;
 
-        // Fit image inside bounding box preserving aspect ratio
-        let iw = img.naturalWidth  || img.width  || 1;
-        let ih = img.naturalHeight || img.height || 1;
-        let scale = Math.min((boxW - pad*2) / iw, (boxH - pad*2) / ih);
+        // Fit image to full box — NO pad in scale so limiting
+        // dimension fills exactly 3 cells
+        let scale = Math.min(boxW / iw, boxH / ih);
         let dw = Math.floor(iw * scale);
         let dh = Math.floor(ih * scale);
 
-        // Centre the fitted image inside the bounding box
+        // Centre within bounding box
         let dx = Math.floor(boxX + (boxW - dw) / 2);
         let dy = Math.floor(boxY + (boxH - dh) / 2);
 
         return { x:dx, y:dy, w:dw, h:dh };
     }
 
-    // Label zone: row 5 cols 2-4  (the full cell row below the image block)
+    // Label zone: row 5, cols 2-4 (full 1-cell height x 3-cell width)
     function getLabelZone() {
         return {
-            cx: cellW + cellW * 1.5,          // horizontal centre of 3-col span
-            cy: cellH * 4 + cellH * 0.5,      // vertical centre of row 5
-            zoneW: cellW * 3,                  // full 3-column width available
-            zoneH: cellH                       // full 1-cell height available
+            cx:    cellW + cellW * 1.5,   // horizontal centre of 3-col span
+            cy:    cellH * 4 + cellH * 0.5, // vertical centre of row 5
+            zoneW: cellW * 3,
+            zoneH: cellH
         };
     }
 
@@ -193,7 +196,7 @@
         ctx.strokeRect(r.x, r.y, r.w, r.h);
     }
 
-    // Draw the big image without clipping — it is already aspect-fitted
+    // Big image: already aspect-fitted, no clip needed
     function drawBigImg(img, r) {
         ctx.drawImage(img, r.x, r.y, r.w, r.h);
         ctx.strokeStyle="#333"; ctx.lineWidth=2;
@@ -215,10 +218,9 @@
         ctx.fillText(text, bx+pad, by+pad+fs*0.85);
     }
 
-    // Label that auto-sizes font to fit within a given pixel width
+    // Auto-shrinks font until text fits within maxW x maxH zone
     function drawFittedLabel(text, cx, cy, maxW, maxH, bg, fg) {
         let pad = 10;
-        // Start from a generous size and shrink until it fits
         let fs = Math.floor(maxH * 0.55);
         ctx.font = "bold "+fs+"px Arial";
         while (fs > 8 && ctx.measureText(text).width > maxW - pad*2) {
@@ -277,7 +279,7 @@
             if(slotVis[k]&&slotImg[k]&&slots[k]) drawImg(slotImg[k],slots[k]);
         });
 
-        // Big image (aspect-fitted, no clipping distortion)
+        // Big image
         if(bigVis && bigImg && bigSlot) {
             drawBigImg(bigImg, bigSlot);
         }
@@ -287,7 +289,7 @@
             drawLabel(labelText,c.x,c.y,"rgba(210,210,210,0.95)","#000");
         }
 
-        // Name label: fills row 5, cols 2-4
+        // Name label in row 5, cols 2-4
         if(nameBelowVisible) {
             let z = getLabelZone();
             drawFittedLabel(nameBelowText,
@@ -368,16 +370,14 @@
     }
 
     async function handleCorrectLocation() {
-        // Hide choice thumbnails
         slotVis.left=false; slotVis.right=false;
 
-        // Build big slot using actual image dimensions for aspect ratio
+        // Pass the loaded image so makeBigSlot can read naturalWidth/Height
         let img = loadedImages[correctImgIndex];
         bigSlot = makeBigSlot(img);
         bigImg  = img;
         bigVis  = true;
 
-        // Show name in the full row below
         nameBelowText    = correctImgName;
         nameBelowVisible = true;
         render();
