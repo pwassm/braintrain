@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Brain Training</title>
     <style>
         * {
@@ -42,22 +42,20 @@
             background-color: rgba(200, 200, 200, 0.9);
             padding: 8px 12px;
             border-radius: 4px;
-            font-size: 14px;
             font-weight: bold;
             display: none;
-            min-width: 150px;
+            min-width: 80px;
             text-align: center;
             z-index: 100;
         }
         #labelBelow {
             position: absolute;
             background-color: rgba(100, 200, 100, 0.95);
-            padding: 10px 15px;
+            padding: 8px 12px;
             border-radius: 4px;
-            font-size: 16px;
             font-weight: bold;
             display: none;
-            min-width: 220px;
+            min-width: 120px;
             text-align: center;
             color: white;
             z-index: 100;
@@ -69,15 +67,14 @@
             transform: translate(-50%, -50%);
             background-color: rgba(255, 100, 100, 0.95);
             color: white;
-            padding: 40px;
+            padding: 20px 40px;
             border-radius: 8px;
-            font-size: 36px;
             font-weight: bold;
             text-align: center;
             white-space: pre-line;
             display: none;
             z-index: 200;
-            min-width: 400px;
+            min-width: 200px;
         }
     </style>
 </head>
@@ -86,13 +83,13 @@
     <canvas id="gridCanvas"></canvas>
 
     <div class="image-container" id="singleImage">
-        <img src="" alt="Fish" width="320" height="180">
+        <img src="" alt="Fish">
     </div>
     <div class="image-container" id="leftImage">
-        <img src="" alt="Fish Left" width="320" height="180">
+        <img src="" alt="Fish Left">
     </div>
     <div class="image-container" id="rightImage">
-        <img src="" alt="Fish Right" width="320" height="180">
+        <img src="" alt="Fish Right">
     </div>
 
     <div class="label" id="showLabel"></div>
@@ -127,35 +124,48 @@
     ];
     // ============================================================
 
-    const IMG_WIDTH        = 320;
-    const IMG_HEIGHT       = 180;
     const GRID_LINES       = 4;
-    const GRID_COLS        = GRID_LINES + 1;   // 5
-    const GRID_ROWS        = GRID_LINES + 1;   // 5
+    const GRID_COLS        = GRID_LINES + 1;
+    const GRID_ROWS        = GRID_LINES + 1;
     const SHOW_SINGLE_MS   = 1000;
     const GAP_BEFORE_PAIR  = 500;
     const CORRECT_FLASH_MS = 3000;
     const INCORRECT_MS     = 3000;
     const WRONG_IMG_MS     = 500;
-    const BELOW_RIGHT      = 20;
+    const BELOW_RIGHT      = 10;
+    const IMG_PADDING      = 10;   // pixels of padding inside each cell
 
-    let screenW  = window.innerWidth;
-    let screenH  = window.innerHeight;
-    let cellW    = screenW / GRID_COLS;
-    let cellH    = screenH / GRID_ROWS;
+    // ---- Screen + cell dimensions (recalculated on resize/rotate) ----
+    let screenW, screenH, cellW, cellH, imgW, imgH;
 
-    let canvas   = document.getElementById("gridCanvas");
-    let ctx      = canvas.getContext("2d");
-    canvas.width  = screenW;
-    canvas.height = screenH;
+    function recalcDimensions() {
+        screenW = window.innerWidth;
+        screenH = window.innerHeight;
+        cellW   = screenW / GRID_COLS;
+        cellH   = screenH / GRID_ROWS;
 
-    let clickPhase      = 0;
-    let correctRegion   = 0;
-    let correctImgName  = "";
-    let correctSide     = "";
-    let nameLabelX      = 0;
-    let nameLabelY      = 0;
-    let gameActive      = false;
+        // Image fills cell minus padding, keeping 16:9 ratio
+        let maxW = cellW - IMG_PADDING * 2;
+        let maxH = cellH - IMG_PADDING * 2;
+        // fit 16:9 within maxW x maxH
+        if (maxW / 16 * 9 <= maxH) {
+            imgW = Math.floor(maxW);
+            imgH = Math.floor(maxW / 16 * 9);
+        } else {
+            imgH = Math.floor(maxH);
+            imgW = Math.floor(maxH / 9 * 16);
+        }
+
+        let canvas    = document.getElementById("gridCanvas");
+        canvas.width  = screenW;
+        canvas.height = screenH;
+
+        // Update font sizes responsively
+        let fontSize = Math.max(10, Math.floor(cellW / 10));
+        document.getElementById("showLabel").style.fontSize  = fontSize + "px";
+        document.getElementById("labelBelow").style.fontSize = fontSize + "px";
+        document.getElementById("feedback").style.fontSize   = Math.max(18, fontSize * 2) + "px";
+    }
 
     // ---- Grid helpers ----
     function getRegionCenter(idx) {
@@ -174,13 +184,14 @@
         return (row - 1) * GRID_COLS + col;
     }
 
-    // Center cell and neighbors (row 3, col 3 in 5x5 = index 13)
     let centerIdx = ((Math.ceil(GRID_ROWS / 2) - 1) * GRID_COLS) + Math.ceil(GRID_COLS / 2);
     let leftIdx   = centerIdx - 1;
     let rightIdx  = centerIdx + 1;
 
     // ---- Draw grid ----
     function drawGrid() {
+        let canvas = document.getElementById("gridCanvas");
+        let ctx    = canvas.getContext("2d");
         ctx.clearRect(0, 0, screenW, screenH);
         ctx.strokeStyle = "#000000";
         ctx.lineWidth   = 1;
@@ -194,27 +205,29 @@
         }
     }
 
-    // ---- Position image container at grid cell ----
+    // ---- Place image container centered on grid cell ----
     function placeAt(containerId, idx) {
-        let c   = getRegionCenter(idx);
-        let el  = document.getElementById(containerId);
-        el.style.left = (c.x - IMG_WIDTH  / 2) + "px";
-        el.style.top  = (c.y - IMG_HEIGHT / 2) + "px";
+        let c  = getRegionCenter(idx);
+        let el = document.getElementById(containerId);
+        let img = el.querySelector("img");
+        img.width  = imgW;
+        img.height = imgH;
+        el.style.left = (c.x - imgW / 2) + "px";
+        el.style.top  = (c.y - imgH / 2) + "px";
     }
 
-    // ---- TTS with David/Zira fish-name fixes ----
+    // ---- TTS with fish-name fixes ----
     function speak(text) {
         if (!('speechSynthesis' in window)) return;
         window.speechSynthesis.cancel();
         let fixes = {
-            "sea bass":       "see bhass",
-            "bass":           "bhass",
-            "perch":          "purch",
-            "gar":            "garr",
-            "soy":            "soe"
+            "sea bass": "see bhass",
+            "bass":     "bhass",
+            "perch":    "purch",
+            "gar":      "garr",
+            "soy":      "soe"
         };
-        // longest first to avoid partial replacement
-        let sorted = Object.keys(fixes).sort((a,b) => b.length - a.length);
+        let sorted = Object.keys(fixes).sort((a, b) => b.length - a.length);
         for (let wrong of sorted) {
             let re = new RegExp("\\b" + wrong + "\\b", "gi");
             text = text.replace(re, fixes[wrong]);
@@ -226,46 +239,49 @@
 
     // ---- Feedback ----
     function showFeedback(msg) {
-        let fb = document.getElementById("feedback");
-        fb.textContent = msg;
-        fb.style.display = "block";
+        document.getElementById("feedback").textContent = msg;
+        document.getElementById("feedback").style.display = "block";
     }
     function hideFeedback() {
         document.getElementById("feedback").style.display = "none";
     }
 
-    // ---- Sleep ----
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-    // ---- Random integer in [0, n) ----
-    function rnd(n) { return Math.floor(Math.random() * n); }
+    function rnd(n)    { return Math.floor(Math.random() * n); }
 
     // ============================================================
-    // PHASE ONE: show single image + region label
+    // PHASE ONE
     // ============================================================
+    let clickPhase     = 0;
+    let correctRegion  = 0;
+    let correctImgName = "";
+    let correctSide    = "";
+    let nameLabelX     = 0;
+    let nameLabelY     = 0;
+    let gameActive     = false;
+
     async function phaseOne() {
         gameActive = false;
         clickPhase = 0;
+
+        recalcDimensions();   // always refresh sizes at start of each round
 
         let i1 = rnd(IMAGE_URLS.length);
         let i2 = rnd(IMAGE_URLS.length);
         while (i2 === i1) i2 = rnd(IMAGE_URLS.length);
 
         correctImgName = IMAGE_NAMES[i1];
-
-        // pick random region for label
-        correctRegion = Math.floor(Math.random() * GRID_ROWS * GRID_COLS) + 1;
+        correctRegion  = Math.floor(Math.random() * GRID_ROWS * GRID_COLS) + 1;
         let lc = getRegionCenter(correctRegion);
 
-        // position single image at center cell
         placeAt("singleImage", centerIdx);
         document.getElementById("singleImage").querySelector("img").src = IMAGE_URLS[i1];
 
-        // position label
         let lbl = document.getElementById("showLabel");
-        lbl.textContent  = correctImgName;
-        lbl.style.left   = (lc.x - 75) + "px";
-        lbl.style.top    = (lc.y - 20) + "px";
+        lbl.textContent = correctImgName;
+        lbl.style.left  = (lc.x - cellW * 0.3) + "px";
+        lbl.style.top   = (lc.y - cellH * 0.1) + "px";
+        lbl.style.maxWidth = (cellW * 0.8) + "px";
 
         drawGrid();
         document.getElementById("singleImage").style.display = "block";
@@ -276,10 +292,9 @@
         document.getElementById("singleImage").style.display = "none";
         lbl.style.display = "none";
         drawGrid();
-
         await sleep(GAP_BEFORE_PAIR);
 
-        // ---- Phase two: show pair ----
+        // Phase 2: show pair
         let leftFile, rightFile;
         if (Math.random() < 0.5) {
             leftFile    = IMAGE_URLS[i2];
@@ -305,17 +320,16 @@
     }
 
     // ============================================================
-    // CLICK HANDLER
+    // CLICK / TAP HANDLER
     // ============================================================
     document.addEventListener("click", async function(e) {
         if (!gameActive) return;
 
-        // ---- Phase 1 click: pick correct image ----
         if (clickPhase === 1) {
-            let leftImg  = document.getElementById("leftImage");
-            let rightImg = document.getElementById("rightImage");
-            let lr = leftImg.getBoundingClientRect();
-            let rr = rightImg.getBoundingClientRect();
+            let leftEl  = document.getElementById("leftImage");
+            let rightEl = document.getElementById("rightImage");
+            let lr = leftEl.getBoundingClientRect();
+            let rr = rightEl.getBoundingClientRect();
 
             let hitLeft  = e.clientX >= lr.left && e.clientX <= lr.right &&
                            e.clientY >= lr.top  && e.clientY <= lr.bottom;
@@ -328,8 +342,8 @@
             let clickedSide = hitLeft ? "left" : "right";
 
             if (clickedSide !== correctSide) {
-                leftImg.style.display  = "none";
-                rightImg.style.display = "none";
+                leftEl.style.display  = "none";
+                rightEl.style.display = "none";
                 drawGrid();
                 showFeedback("WRONG\nIMAGE");
                 await sleep(WRONG_IMG_MS);
@@ -338,15 +352,14 @@
                 await sleep(300);
                 phaseOne();
             } else {
-                // hide wrong image, keep correct one
                 if (clickedSide === "left") {
-                    rightImg.style.display = "none";
-                    let r = leftImg.getBoundingClientRect();
+                    rightEl.style.display = "none";
+                    let r = leftEl.getBoundingClientRect();
                     nameLabelX = r.left + BELOW_RIGHT;
                     nameLabelY = r.bottom + BELOW_RIGHT;
                 } else {
-                    leftImg.style.display = "none";
-                    let r = rightImg.getBoundingClientRect();
+                    leftEl.style.display = "none";
+                    let r = rightEl.getBoundingClientRect();
                     nameLabelX = r.left + BELOW_RIGHT;
                     nameLabelY = r.bottom + BELOW_RIGHT;
                 }
@@ -356,16 +369,16 @@
             }
         }
 
-        // ---- Phase 2 click: pick correct region ----
         else if (clickPhase === 2) {
             gameActive = false;
             let region = getRegionFromMouse(e.clientX, e.clientY);
 
             if (region === correctRegion) {
                 let lb = document.getElementById("labelBelow");
-                lb.textContent  = correctImgName;
-                lb.style.left   = nameLabelX + "px";
-                lb.style.top    = nameLabelY + "px";
+                lb.textContent   = correctImgName;
+                lb.style.left    = nameLabelX + "px";
+                lb.style.top     = nameLabelY + "px";
+                lb.style.maxWidth = (cellW * 0.9) + "px";
                 lb.style.display = "block";
                 drawGrid();
                 speak(correctImgName);
@@ -390,18 +403,21 @@
         }
     });
 
-    // ---- Handle resize ----
+    // ---- Resize and orientation change ----
     window.addEventListener("resize", function() {
-        screenW = window.innerWidth;
-        screenH = window.innerHeight;
-        cellW   = screenW / GRID_COLS;
-        cellH   = screenH / GRID_ROWS;
-        canvas.width  = screenW;
-        canvas.height = screenH;
+        recalcDimensions();
         drawGrid();
     });
 
+    window.addEventListener("orientationchange", function() {
+        setTimeout(function() {
+            recalcDimensions();
+            drawGrid();
+        }, 300);   // small delay lets browser finish rotating
+    });
+
     // ---- Start ----
+    recalcDimensions();
     drawGrid();
     phaseOne();
 </script>
