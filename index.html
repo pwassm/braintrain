@@ -65,9 +65,12 @@
     let clickPhase = 0, correctRegion = 0, correctImgName = "";
     let correctImgIndex = 0;
     let correctSide = "", gameActive = false;
-    let slots   = { single:null, left:null, right:null, big:null };
-    let slotImg = { single:null, left:null, right:null, big:null };
-    let slotVis = { single:false, left:false, right:false, big:false };
+    let slots   = { single:null, left:null, right:null };
+    let slotImg = { single:null, left:null, right:null };
+    let slotVis = { single:false, left:false, right:false };
+    let bigSlot = null;   // { x, y, w, h } — the 3x3 image rect (aspect-fitted)
+    let bigImg  = null;
+    let bigVis  = false;
     let labelVisible=false, labelText="", labelRegion=0;
     let nameBelowVisible=false, nameBelowText="";
     let feedbackVisible=false, feedbackText="";
@@ -132,30 +135,49 @@
         return (row-1)*GRID_COLS+col;
     }
 
-    let centerIdx = ((Math.ceil(GRID_ROWS/2)-1)*GRID_COLS)+Math.ceil(GRID_COLS/2); // cell 13
-    let leftIdx   = centerIdx - 1;   // cell 12
-    let rightIdx  = centerIdx + 1;   // cell 14
+    let centerIdx = ((Math.ceil(GRID_ROWS/2)-1)*GRID_COLS)+Math.ceil(GRID_COLS/2);
+    let leftIdx   = centerIdx - 1;
+    let rightIdx  = centerIdx + 1;
 
     function makeSlot(idx) {
         let c = getCenter(idx);
         return { x:Math.floor(c.x-imgW/2), y:Math.floor(c.y-imgH/2), w:imgW, h:imgH };
     }
 
-    // Central 3x3 block (cols 2-4, rows 2-4).
-    // Image fills the top portion; a reserved strip at the bottom holds the label.
-    function makeBigSlot() {
-        let pad = 8;
-        let labelReserve = cellH * 0.45;
-        let x = cellW     + pad;
-        let y = cellH     + pad;
-        let w = cellW * 3 - pad * 2;
-        let h = cellH * 3 - pad * 2 - labelReserve;
+    // -------------------------------------------------------
+    // BIG SLOT: image fills rows 1-3 cols 2-4 (aspect-preserved),
+    // label fills row 4 cols 2-4 (full 1-cell height, 3-cell wide).
+    // -------------------------------------------------------
+    function makeBigSlot(img) {
+        let pad = 4;
+
+        // Bounding box = central 3 cols × 3 rows
+        let boxX = cellW;           // left edge of col 2
+        let boxY = cellH;           // top edge of row 2
+        let boxW = cellW * 3;       // 3 columns wide
+        let boxH = cellH * 3;       // 3 rows tall  (rows 2-4)
+
+        // Fit image inside bounding box preserving aspect ratio
+        let iw = img.naturalWidth  || img.width  || 1;
+        let ih = img.naturalHeight || img.height || 1;
+        let scale = Math.min((boxW - pad*2) / iw, (boxH - pad*2) / ih);
+        let dw = Math.floor(iw * scale);
+        let dh = Math.floor(ih * scale);
+
+        // Centre the fitted image inside the bounding box
+        let dx = Math.floor(boxX + (boxW - dw) / 2);
+        let dy = Math.floor(boxY + (boxH - dh) / 2);
+
+        return { x:dx, y:dy, w:dw, h:dh };
+    }
+
+    // Label zone: row 5 cols 2-4  (the full cell row below the image block)
+    function getLabelZone() {
         return {
-            x: Math.floor(x),
-            y: Math.floor(y),
-            w: Math.floor(w),
-            h: Math.floor(h),
-            labelReserve: labelReserve
+            cx: cellW + cellW * 1.5,          // horizontal centre of 3-col span
+            cy: cellH * 4 + cellH * 0.5,      // vertical centre of row 5
+            zoneW: cellW * 3,                  // full 3-column width available
+            zoneH: cellH                       // full 1-cell height available
         };
     }
 
@@ -167,6 +189,13 @@
         ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.clip();
         ctx.drawImage(img, r.x, r.y, r.w, r.h);
         ctx.restore();
+        ctx.strokeStyle="#333"; ctx.lineWidth=2;
+        ctx.strokeRect(r.x, r.y, r.w, r.h);
+    }
+
+    // Draw the big image without clipping — it is already aspect-fitted
+    function drawBigImg(img, r) {
+        ctx.drawImage(img, r.x, r.y, r.w, r.h);
         ctx.strokeStyle="#333"; ctx.lineWidth=2;
         ctx.strokeRect(r.x, r.y, r.w, r.h);
     }
@@ -183,6 +212,29 @@
         if(ctx.roundRect) ctx.roundRect(bx,by,bw,bh,5); else ctx.rect(bx,by,bw,bh);
         ctx.fill();
         ctx.fillStyle=fg;
+        ctx.fillText(text, bx+pad, by+pad+fs*0.85);
+    }
+
+    // Label that auto-sizes font to fit within a given pixel width
+    function drawFittedLabel(text, cx, cy, maxW, maxH, bg, fg) {
+        let pad = 10;
+        // Start from a generous size and shrink until it fits
+        let fs = Math.floor(maxH * 0.55);
+        ctx.font = "bold "+fs+"px Arial";
+        while (fs > 8 && ctx.measureText(text).width > maxW - pad*2) {
+            fs--;
+            ctx.font = "bold "+fs+"px Arial";
+        }
+        let tw = ctx.measureText(text).width;
+        let bw = tw + pad*2;
+        let bh = fs + pad*2;
+        let bx = Math.max(2, Math.min(cx - bw/2, GW - bw - 2));
+        let by = Math.max(2, Math.min(cy - bh/2, GH - bh - 2));
+        ctx.fillStyle = bg;
+        ctx.beginPath();
+        if(ctx.roundRect) ctx.roundRect(bx,by,bw,bh,6); else ctx.rect(bx,by,bw,bh);
+        ctx.fill();
+        ctx.fillStyle = fg;
         ctx.fillText(text, bx+pad, by+pad+fs*0.85);
     }
 
@@ -220,14 +272,14 @@
             ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(GW,y);ctx.stroke();
         }
 
-        // Normal small slots
+        // Small slots
         ["single","left","right"].forEach(k=>{
             if(slotVis[k]&&slotImg[k]&&slots[k]) drawImg(slotImg[k],slots[k]);
         });
 
-        // Big central 3x3 slot
-        if(slotVis.big && slotImg.big && slots.big) {
-            drawImg(slotImg.big, slots.big);
+        // Big image (aspect-fitted, no clipping distortion)
+        if(bigVis && bigImg && bigSlot) {
+            drawBigImg(bigImg, bigSlot);
         }
 
         if(labelVisible){
@@ -235,13 +287,12 @@
             drawLabel(labelText,c.x,c.y,"rgba(210,210,210,0.95)","#000");
         }
 
-        // Name label centred in the reserved strip below the big image
-        if(nameBelowVisible && slots.big) {
-            let s  = slots.big;
-            let cx = cellW + cellW * 1.5;               // centre of cols 2-4
-            let cy = s.y + s.h + s.labelReserve / 2;   // centre of reserved strip
-            let fs = Math.max(14, Math.floor(cellH / 3.5));
-            drawLabel(nameBelowText, cx, cy, "rgba(60,180,60,0.97)", "#fff", fs);
+        // Name label: fills row 5, cols 2-4
+        if(nameBelowVisible) {
+            let z = getLabelZone();
+            drawFittedLabel(nameBelowText,
+                z.cx, z.cy, z.zoneW, z.zoneH,
+                "rgba(60,180,60,0.97)", "#fff");
         }
 
         if(feedbackVisible) drawFeedback(feedbackText);
@@ -284,7 +335,7 @@
         gameActive=false; clickPhase=0;
         setupLayout();
 
-        slotVis.big=false; slotImg.big=null; slots.big=null;
+        bigVis=false; bigImg=null; bigSlot=null;
         nameBelowVisible=false;
 
         let i1=rnd(IMAGE_URLS.length), i2=rnd(IMAGE_URLS.length);
@@ -320,23 +371,22 @@
         // Hide choice thumbnails
         slotVis.left=false; slotVis.right=false;
 
-        // Show correct image large in central 3x3 block
-        slots.big   = makeBigSlot();
-        slotImg.big = loadedImages[correctImgIndex];
-        slotVis.big = true;
+        // Build big slot using actual image dimensions for aspect ratio
+        let img = loadedImages[correctImgIndex];
+        bigSlot = makeBigSlot(img);
+        bigImg  = img;
+        bigVis  = true;
 
-        // Show name label in reserved strip below image
+        // Show name in the full row below
         nameBelowText    = correctImgName;
         nameBelowVisible = true;
         render();
 
-        // Wait for audio to finish before advancing
+        // Wait for audio to finish, then hold briefly
         await playAudio(correctImgIndex);
-
-        // Brief hold after audio ends
         await sleep(CORRECT_FLASH_MS);
 
-        slotVis.big=false; nameBelowVisible=false;
+        bigVis=false; nameBelowVisible=false;
         render();
         await sleep(300);
         phaseOne();
