@@ -5,144 +5,137 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Brain Training</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            width: 100vw;
-            height: 100vh;
-            background-color: #ffffff;
-            font-family: Arial, sans-serif;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            /* 100dvh = dynamic viewport height, fixes mobile address bar */
+            height: 100dvh;
             overflow: hidden;
+            touch-action: manipulation;
+            /* LIGHT BLUE: confirms new file loaded on phone */
+            background-color: #e8f4fd;
         }
+
         #gameContainer {
-            width: 100vw;
-            height: 100vh;
-            position: relative;
-            background-color: white;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #e8f4fd;
+            font-family: Arial, sans-serif;
         }
+
         canvas {
             position: absolute;
-            top: 0;
-            left: 0;
+            top: 0; left: 0;
             pointer-events: none;
         }
+
         .image-container {
             position: absolute;
             display: none;
         }
+
         .image-container img {
             border: 2px solid #333;
             display: block;
         }
-        .label {
+
+        #showLabel {
             position: absolute;
-            background-color: rgba(200, 200, 200, 0.9);
-            padding: 8px 12px;
+            background-color: rgba(200, 200, 200, 0.95);
+            padding: 5px 8px;
             border-radius: 4px;
             font-weight: bold;
             display: none;
-            min-width: 80px;
             text-align: center;
             z-index: 100;
+            word-wrap: break-word;
         }
+
         #labelBelow {
             position: absolute;
             background-color: rgba(100, 200, 100, 0.95);
-            padding: 8px 12px;
+            padding: 5px 8px;
             border-radius: 4px;
             font-weight: bold;
             display: none;
-            min-width: 120px;
             text-align: center;
             color: white;
             z-index: 100;
+            word-wrap: break-word;
         }
+
         #feedback {
-            position: absolute;
+            position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background-color: rgba(255, 100, 100, 0.95);
+            background-color: rgba(255, 80, 80, 0.97);
             color: white;
-            padding: 20px 40px;
-            border-radius: 8px;
+            padding: 20px 30px;
+            border-radius: 10px;
             font-weight: bold;
             text-align: center;
             white-space: pre-line;
             display: none;
-            z-index: 200;
-            min-width: 200px;
+            z-index: 300;
         }
     </style>
 </head>
 <body>
 <div id="gameContainer">
     <canvas id="gridCanvas"></canvas>
-
-    <div class="image-container" id="singleImage">
-        <img src="" alt="Fish">
-    </div>
-    <div class="image-container" id="leftImage">
-        <img src="" alt="Fish Left">
-    </div>
-    <div class="image-container" id="rightImage">
-        <img src="" alt="Fish Right">
-    </div>
-
-    <div class="label" id="showLabel"></div>
+    <div class="image-container" id="singleImage"><img src="" alt=""></div>
+    <div class="image-container" id="leftImage"><img src="" alt=""></div>
+    <div class="image-container" id="rightImage"><img src="" alt=""></div>
+    <div id="showLabel"></div>
     <div id="labelBelow"></div>
     <div id="feedback"></div>
 </div>
 
 <script>
     // ============================================================
-    // EDIT THESE to match your exact filenames in /images folder
+    // IMAGE FILES AND DISPLAY NAMES
     // ============================================================
     const IMAGE_URLS = [
-        "images/sea-bass.jpg",
-        "images/largemouth-bass.jpg",
-        "images/perch.jpg",
-        "images/gar.jpg",
-        "images/soy.jpg",
-        "images/bluegill.jpg"
+        "images/Garabaldi-Tiny.jpg",
+        "images/Red-Phalarope.jpg",
+        "images/Red-neck-Phalarope.jpg"
     ];
     const IMAGE_NAMES = [
-        "sea bass",
-        "largemouth bass",
-        "perch",
-        "gar",
-        "soy",
-        "bluegill"
+        "Garibaldi",
+        "Red Phalarope",
+        "Red-necked Phalarope"
     ];
     // ============================================================
 
     const GRID_LINES       = 4;
-    const GRID_COLS        = GRID_LINES + 1;
-    const GRID_ROWS        = GRID_LINES + 1;
+    const GRID_COLS        = GRID_LINES + 1;   // 5
+    const GRID_ROWS        = GRID_LINES + 1;   // 5
     const SHOW_SINGLE_MS   = 1000;
     const GAP_BEFORE_PAIR  = 500;
     const CORRECT_FLASH_MS = 3000;
     const INCORRECT_MS     = 3000;
     const WRONG_IMG_MS     = 500;
-    const BELOW_RIGHT      = 10;
-    const IMG_PADDING      = 10;   // pixels of padding inside each cell
+    const IMG_PAD          = 6;   // px padding inside each cell
 
-    // ---- Screen + cell dimensions (recalculated on resize/rotate) ----
-    let screenW, screenH, cellW, cellH, imgW, imgH;
+    let W, H, cellW, cellH, imgW, imgH;
 
-    function recalcDimensions() {
-        screenW = window.innerWidth;
-        screenH = window.innerHeight;
-        cellW   = screenW / GRID_COLS;
-        cellH   = screenH / GRID_ROWS;
+    function recalc() {
+        // Use the container's actual pixel size, NOT vh/vw
+        let container = document.getElementById("gameContainer");
+        W = container.clientWidth;
+        H = container.clientHeight;
 
-        // Image fills cell minus padding, keeping 16:9 ratio
-        let maxW = cellW - IMG_PADDING * 2;
-        let maxH = cellH - IMG_PADDING * 2;
-        // fit 16:9 within maxW x maxH
+        cellW = W / GRID_COLS;
+        cellH = H / GRID_ROWS;
+
+        // Fit 16:9 image inside cell with padding
+        let maxW = cellW - IMG_PAD * 2;
+        let maxH = cellH - IMG_PAD * 2;
         if (maxW / 16 * 9 <= maxH) {
             imgW = Math.floor(maxW);
             imgH = Math.floor(maxW / 16 * 9);
@@ -151,28 +144,26 @@
             imgW = Math.floor(maxH / 9 * 16);
         }
 
+        // Resize canvas to match container
         let canvas    = document.getElementById("gridCanvas");
-        canvas.width  = screenW;
-        canvas.height = screenH;
+        canvas.width  = W;
+        canvas.height = H;
 
-        // Update font sizes responsively
-        let fontSize = Math.max(10, Math.floor(cellW / 10));
-        document.getElementById("showLabel").style.fontSize  = fontSize + "px";
-        document.getElementById("labelBelow").style.fontSize = fontSize + "px";
-        document.getElementById("feedback").style.fontSize   = Math.max(18, fontSize * 2) + "px";
+        // Scale fonts with cell size
+        let fs = Math.max(9, Math.floor(Math.min(cellW, cellH) / 7));
+        document.getElementById("showLabel").style.fontSize  = fs + "px";
+        document.getElementById("labelBelow").style.fontSize = fs + "px";
+        document.getElementById("feedback").style.fontSize   = Math.max(22, fs * 2) + "px";
+        document.getElementById("feedback").style.minWidth   = Math.floor(W * 0.35) + "px";
     }
 
-    // ---- Grid helpers ----
-    function getRegionCenter(idx) {
+    function getCenter(idx) {
         let row = Math.floor((idx - 1) / GRID_COLS) + 1;
         let col = ((idx - 1) % GRID_COLS) + 1;
-        return {
-            x: (col - 0.5) * cellW,
-            y: (row - 0.5) * cellH
-        };
+        return { x: (col - 0.5) * cellW, y: (row - 0.5) * cellH };
     }
 
-    function getRegionFromMouse(mx, my) {
+    function getRegion(mx, my) {
         let col = Math.floor(mx / cellW) + 1;
         let row = Math.floor(my / cellH) + 1;
         if (col < 1 || col > GRID_COLS || row < 1 || row > GRID_ROWS) return 0;
@@ -183,27 +174,25 @@
     let leftIdx   = centerIdx - 1;
     let rightIdx  = centerIdx + 1;
 
-    // ---- Draw grid ----
     function drawGrid() {
         let canvas = document.getElementById("gridCanvas");
         let ctx    = canvas.getContext("2d");
-        ctx.clearRect(0, 0, screenW, screenH);
+        ctx.clearRect(0, 0, W, H);
         ctx.strokeStyle = "#000000";
         ctx.lineWidth   = 1;
         for (let i = 1; i <= GRID_LINES; i++) {
-            let x = screenW * i / (GRID_LINES + 1);
-            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, screenH); ctx.stroke();
+            let x = W * i / (GRID_LINES + 1);
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
         }
         for (let i = 1; i <= GRID_LINES; i++) {
-            let y = screenH * i / (GRID_LINES + 1);
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(screenW, y); ctx.stroke();
+            let y = H * i / (GRID_LINES + 1);
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
         }
     }
 
-    // ---- Place image container centered on grid cell ----
-    function placeAt(containerId, idx) {
-        let c  = getRegionCenter(idx);
-        let el = document.getElementById(containerId);
+    function placeAt(id, idx) {
+        let c   = getCenter(idx);
+        let el  = document.getElementById(id);
         let img = el.querySelector("img");
         img.width  = imgW;
         img.height = imgH;
@@ -211,55 +200,43 @@
         el.style.top  = (c.y - imgH / 2) + "px";
     }
 
-    // ---- TTS with fish-name fixes ----
     function speak(text) {
         if (!('speechSynthesis' in window)) return;
         window.speechSynthesis.cancel();
         let fixes = {
-            "sea bass": "see bhass",
-            "bass":     "bhass",
-            "perch":    "purch",
-            "gar":      "garr",
-            "soy":      "soe"
+            "sea bass":  "see bhass",
+            "bass":      "bhass",
+            "perch":     "purch",
+            "gar":       "garr",
+            "soy":       "soe",
+            "phalarope": "FAL-a-rope"
         };
         let sorted = Object.keys(fixes).sort((a, b) => b.length - a.length);
-        for (let wrong of sorted) {
-            let re = new RegExp("\\b" + wrong + "\\b", "gi");
-            text = text.replace(re, fixes[wrong]);
-        }
+        for (let w of sorted)
+            text = text.replace(new RegExp("\\b" + w + "\\b", "gi"), fixes[w]);
         let u = new SpeechSynthesisUtterance(text);
         u.rate = 0.9; u.volume = 1;
         window.speechSynthesis.speak(u);
     }
 
-    // ---- Feedback ----
     function showFeedback(msg) {
-        document.getElementById("feedback").textContent = msg;
-        document.getElementById("feedback").style.display = "block";
+        let fb = document.getElementById("feedback");
+        fb.textContent = msg;
+        fb.style.display = "block";
     }
     function hideFeedback() {
         document.getElementById("feedback").style.display = "none";
     }
-
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
     function rnd(n)    { return Math.floor(Math.random() * n); }
 
-    // ============================================================
-    // PHASE ONE
-    // ============================================================
-    let clickPhase     = 0;
-    let correctRegion  = 0;
-    let correctImgName = "";
-    let correctSide    = "";
-    let nameLabelX     = 0;
-    let nameLabelY     = 0;
-    let gameActive     = false;
+    let clickPhase = 0, correctRegion = 0, correctImgName = "";
+    let correctSide = "", nameLabelX = 0, nameLabelY = 0, gameActive = false;
 
     async function phaseOne() {
         gameActive = false;
         clickPhase = 0;
-
-        recalcDimensions();   // always refresh sizes at start of each round
+        recalc();   // fresh dimensions every round
 
         let i1 = rnd(IMAGE_URLS.length);
         let i2 = rnd(IMAGE_URLS.length);
@@ -267,21 +244,20 @@
 
         correctImgName = IMAGE_NAMES[i1];
         correctRegion  = Math.floor(Math.random() * GRID_ROWS * GRID_COLS) + 1;
-        let lc = getRegionCenter(correctRegion);
+        let lc = getCenter(correctRegion);
 
         placeAt("singleImage", centerIdx);
         document.getElementById("singleImage").querySelector("img").src = IMAGE_URLS[i1];
 
         let lbl = document.getElementById("showLabel");
-        lbl.textContent = correctImgName;
-        lbl.style.left  = (lc.x - cellW * 0.3) + "px";
-        lbl.style.top   = (lc.y - cellH * 0.1) + "px";
-        lbl.style.maxWidth = (cellW * 0.8) + "px";
+        lbl.textContent  = correctImgName;
+        lbl.style.maxWidth = Math.floor(cellW * 0.88) + "px";
+        lbl.style.left   = (lc.x - cellW * 0.3) + "px";
+        lbl.style.top    = (lc.y - cellH * 0.12) + "px";
 
         drawGrid();
         document.getElementById("singleImage").style.display = "block";
         lbl.style.display = "block";
-
         await sleep(SHOW_SINGLE_MS);
 
         document.getElementById("singleImage").style.display = "none";
@@ -289,16 +265,12 @@
         drawGrid();
         await sleep(GAP_BEFORE_PAIR);
 
-        // Phase 2: show pair
+        // Pair
         let leftFile, rightFile;
         if (Math.random() < 0.5) {
-            leftFile    = IMAGE_URLS[i2];
-            rightFile   = IMAGE_URLS[i1];
-            correctSide = "right";
+            leftFile = IMAGE_URLS[i2]; rightFile = IMAGE_URLS[i1]; correctSide = "right";
         } else {
-            leftFile    = IMAGE_URLS[i1];
-            rightFile   = IMAGE_URLS[i2];
-            correctSide = "left";
+            leftFile = IMAGE_URLS[i1]; rightFile = IMAGE_URLS[i2]; correctSide = "left";
         }
 
         placeAt("leftImage",  leftIdx);
@@ -309,15 +281,12 @@
         drawGrid();
         document.getElementById("leftImage").style.display  = "block";
         document.getElementById("rightImage").style.display = "block";
-
         clickPhase = 1;
         gameActive = true;
     }
 
-    // ============================================================
-    // CLICK / TAP HANDLER
-    // ============================================================
-    document.addEventListener("click", async function(e) {
+    // ---- Unified tap/click handler ----
+    function handleTap(clientX, clientY) {
         if (!gameActive) return;
 
         if (clickPhase === 1) {
@@ -326,38 +295,30 @@
             let lr = leftEl.getBoundingClientRect();
             let rr = rightEl.getBoundingClientRect();
 
-            let hitLeft  = e.clientX >= lr.left && e.clientX <= lr.right &&
-                           e.clientY >= lr.top  && e.clientY <= lr.bottom;
-            let hitRight = e.clientX >= rr.left && e.clientX <= rr.right &&
-                           e.clientY >= rr.top  && e.clientY <= rr.bottom;
-
+            let hitLeft  = clientX >= lr.left && clientX <= lr.right &&
+                           clientY >= lr.top  && clientY <= lr.bottom;
+            let hitRight = clientX >= rr.left && clientX <= rr.right &&
+                           clientY >= rr.top  && clientY <= rr.bottom;
             if (!hitLeft && !hitRight) return;
 
             gameActive = false;
-            let clickedSide = hitLeft ? "left" : "right";
+            let side = hitLeft ? "left" : "right";
 
-            if (clickedSide !== correctSide) {
-                leftEl.style.display  = "none";
-                rightEl.style.display = "none";
+            if (side !== correctSide) {
+                leftEl.style.display = rightEl.style.display = "none";
                 drawGrid();
                 showFeedback("WRONG\nIMAGE");
-                await sleep(WRONG_IMG_MS);
-                hideFeedback();
-                drawGrid();
-                await sleep(300);
-                phaseOne();
+                sleep(WRONG_IMG_MS).then(() => {
+                    hideFeedback(); drawGrid();
+                    sleep(300).then(phaseOne);
+                });
             } else {
-                if (clickedSide === "left") {
-                    rightEl.style.display = "none";
-                    let r = leftEl.getBoundingClientRect();
-                    nameLabelX = r.left + BELOW_RIGHT;
-                    nameLabelY = r.bottom + BELOW_RIGHT;
-                } else {
-                    leftEl.style.display = "none";
-                    let r = rightEl.getBoundingClientRect();
-                    nameLabelX = r.left + BELOW_RIGHT;
-                    nameLabelY = r.bottom + BELOW_RIGHT;
-                }
+                let keepEl = side === "left" ? leftEl  : rightEl;
+                let hideEl = side === "left" ? rightEl : leftEl;
+                hideEl.style.display = "none";
+                let r = keepEl.getBoundingClientRect();
+                nameLabelX = r.left + 8;
+                nameLabelY = r.bottom + 8;
                 drawGrid();
                 clickPhase = 2;
                 gameActive = true;
@@ -366,53 +327,55 @@
 
         else if (clickPhase === 2) {
             gameActive = false;
-            let region = getRegionFromMouse(e.clientX, e.clientY);
+            let region = getRegion(clientX, clientY);
 
             if (region === correctRegion) {
                 let lb = document.getElementById("labelBelow");
                 lb.textContent   = correctImgName;
                 lb.style.left    = nameLabelX + "px";
                 lb.style.top     = nameLabelY + "px";
-                lb.style.maxWidth = (cellW * 0.9) + "px";
+                lb.style.maxWidth = Math.floor(cellW * 0.9) + "px";
                 lb.style.display = "block";
                 drawGrid();
                 speak(correctImgName);
-                await sleep(CORRECT_FLASH_MS);
-                lb.style.display = "none";
-                document.getElementById("leftImage").style.display  = "none";
-                document.getElementById("rightImage").style.display = "none";
-                drawGrid();
-                await sleep(300);
-                phaseOne();
+                sleep(CORRECT_FLASH_MS).then(() => {
+                    lb.style.display = "none";
+                    document.getElementById("leftImage").style.display  = "none";
+                    document.getElementById("rightImage").style.display = "none";
+                    drawGrid();
+                    sleep(300).then(phaseOne);
+                });
             } else {
                 document.getElementById("leftImage").style.display  = "none";
                 document.getElementById("rightImage").style.display = "none";
                 drawGrid();
                 showFeedback("WRONG");
-                await sleep(INCORRECT_MS);
-                hideFeedback();
-                drawGrid();
-                await sleep(300);
-                phaseOne();
+                sleep(INCORRECT_MS).then(() => {
+                    hideFeedback(); drawGrid();
+                    sleep(300).then(phaseOne);
+                });
             }
         }
+    }
+
+    // Mouse
+    document.addEventListener("click", e => handleTap(e.clientX, e.clientY));
+
+    // Touch (mobile) — touchend for reliable single tap
+    document.addEventListener("touchend", e => {
+        e.preventDefault();
+        let t = e.changedTouches[0];
+        handleTap(t.clientX, t.clientY);
+    }, { passive: false });
+
+    // Resize + orientation
+    window.addEventListener("resize", () => { recalc(); drawGrid(); });
+    window.addEventListener("orientationchange", () => {
+        setTimeout(() => { recalc(); drawGrid(); }, 350);
     });
 
-    // ---- Resize and orientation change ----
-    window.addEventListener("resize", function() {
-        recalcDimensions();
-        drawGrid();
-    });
-
-    window.addEventListener("orientationchange", function() {
-        setTimeout(function() {
-            recalcDimensions();
-            drawGrid();
-        }, 300);   // small delay lets browser finish rotating
-    });
-
-    // ---- Start ----
-    recalcDimensions();
+    // Start
+    recalc();
     drawGrid();
     phaseOne();
 </script>
