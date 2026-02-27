@@ -10,20 +10,28 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { overflow: hidden; touch-action: manipulation; background: #000; }
-        
         #rotateWrap { position: fixed; top: 0; left: 0; }
         #gameCanvas { display: block; }
 
-        /* -- Menu is now INSIDE rotateWrap, so it automatically rotates with the game! -- */
+        /* -- The Wrapper ---------------------------------------
+           Fixed at 48x48 (exactly the button size) so we can 
+           rotate the entire menu system around its center.
+        ------------------------------------------------------- */
         #menuWrap {
-            position: absolute;
+            position: fixed;
             z-index: 999;
-            bottom: 14px;
-            right: 14px;
+            width: 48px; height: 48px;
+        }
+        /* Rotates the entire block (button + panel + text) 90deg CW */
+        #menuWrap.portrait-mode {
+            transform: rotate(90deg);
+            transform-origin: 24px 24px; /* Center of the button */
         }
 
         #menuBtn {
-            width: 48px; height: 48px;
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
             background: rgba(30,30,30,0.82);
             border: none; border-radius: 10px;
             cursor: pointer;
@@ -38,6 +46,11 @@
             background: #fff; border-radius: 2px;
         }
 
+        /* -- The Panel -----------------------------------------
+           Positioned relative to the 48x48 wrapper.
+           Because the wrapper rotates, "bottom" naturally 
+           becomes "visual UP", and "right" aligns correctly.
+        ------------------------------------------------------- */
         #menuPanel {
             position: absolute;
             bottom: 54px;
@@ -101,25 +114,23 @@
 
 <div id="rotateWrap">
     <canvas id="gameCanvas"></canvas>
-    
     <div id="videoWrap">
         <div id="ytDiv"></div>
         <button id="closeVideoBtn" aria-label="Close">X</button>
     </div>
+</div>
 
-    <!-- The menu is now INSIDE rotateWrap -->
-    <div id="menuWrap">
-        <div id="menuPanel">
-            <div class="menu-item" id="miPlay">Play</div>
-            <div class="menu-divider"></div>
-            <div class="menu-item" id="miConfig">Config</div>
-            <div class="menu-item" id="miHelp">Help</div>
-            <div class="menu-divider"></div>
-        </div>
-        <button id="menuBtn" aria-label="Menu">
-            <span></span><span></span><span></span>
-        </button>
+<div id="menuWrap">
+    <div id="menuPanel">
+        <div class="menu-item" id="miPlay">Play</div>
+        <div class="menu-divider"></div>
+        <div class="menu-item" id="miConfig">Config</div>
+        <div class="menu-item" id="miHelp">Help</div>
+        <div class="menu-divider"></div>
     </div>
+    <button id="menuBtn" aria-label="Menu">
+        <span></span><span></span><span></span>
+    </button>
 </div>
 
 <script src="https://www.youtube.com/iframe_api"></script>
@@ -364,6 +375,21 @@
         });
     }
 
+    function updateMenuPosition() {
+        let PAD = 14;
+        if (isPortrait) {
+            menuWrap.classList.add("portrait-mode");
+            menuWrap.style.bottom = PAD + "px";
+            menuWrap.style.left   = PAD + "px";
+            menuWrap.style.right  = "auto";
+        } else {
+            menuWrap.classList.remove("portrait-mode");
+            menuWrap.style.bottom = PAD + "px";
+            menuWrap.style.right  = PAD + "px";
+            menuWrap.style.left   = "auto";
+        }
+    }
+
     function closeMenu() {
         collapsePlay();
         menuPanel.classList.remove("open");
@@ -426,6 +452,7 @@
             imgH = Math.floor(maxH); imgW = Math.floor(maxH * 16 / 9);
         }
 
+        updateMenuPosition();
         if (videoWrap.classList.contains("open")) positionVideoWrap();
     }
 
