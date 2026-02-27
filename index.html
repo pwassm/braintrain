@@ -54,28 +54,21 @@
         .menu-divider { height: 1px; background: rgba(255,255,255,0.15); margin: 2px 0; }
 
         /*
-         * videoWrap: inside rotateWrap, shares same transform.
-         * overflow:hidden crops the oversized iframe so only
-         * actual video content shows — no black letterbox bars.
+         * videoWrap: inside rotateWrap so it shares rotation transform.
+         * Spans cols 2-4, ALL 5 rows → 3 cells wide × 5 cells tall.
+         * overflow:hidden + oversized iframe crops YT black bars.
          */
         #videoWrap {
             display: none;
             position: absolute;
             z-index: 10;
             overflow: hidden;
-            background: transparent;
+            background: #000;
         }
         #videoWrap.open { display: block; }
 
-        /*
-         * The iframe is scaled UP beyond the container to push
-         * YouTube's black letterbox bars outside the clip region.
-         * We use a 16:9 short — actual content fills ~80% height
-         * of the frame. Scale factor 1.5 × and re-center.
-         */
         #videoIframe {
             position: absolute;
-            /* Oversize by SCALE factor — set by JS */
             border: none;
             pointer-events: auto;
         }
@@ -121,9 +114,6 @@
 </div>
 
 <script>
-    // ============================================================
-    // Asset arrays
-    // ============================================================
     let IMAGE_URLS  = [];
     let IMAGE_NAMES = [];
     let AUDIO_FILES = [];
@@ -131,8 +121,8 @@
     let activeSetIndex = 0;
 
     const GRID_LINES       = 4;
-    const GRID_COLS        = GRID_LINES + 1;   // 5
-    const GRID_ROWS        = GRID_LINES + 1;   // 5
+    const GRID_COLS        = GRID_LINES + 1;
+    const GRID_ROWS        = GRID_LINES + 1;
     const SHOW_SINGLE_MS   = 1000;
     const GAP_BEFORE_PAIR  = 500;
     const CORRECT_FLASH_MS = 1500;
@@ -140,9 +130,11 @@
     const WRONG_IMG_MS     = 500;
     const IMG_PAD          = 6;
 
-    // How much to overscale the YT iframe to hide black bars.
-    // 9:16 Shorts: content fills ~56% of iframe width → scale ~1.8
-    const YT_SCALE = 1.85;
+    // YT iframe overscale: push black bars outside overflow:hidden clip.
+    // Shorts are 9:16 inside a 16:9 iframe → content is ~(9/16)^2 ≈ 31.6% of area.
+    // Scale the iframe so that 31.6% fills the container → scale ≈ 1/0.5625 ≈ 1.78
+    // We go a bit higher to be safe.
+    const YT_SCALE = 1.82;
 
     let canvas    = document.getElementById("gameCanvas");
     let ctx       = canvas.getContext("2d");
@@ -153,21 +145,26 @@
     let GW, GH, cellW, cellH, imgW, imgH;
     let isPortrait, bgColor;
 
-    let loadedImages = [];
-    let clickPhase = 0, correctRegion = 0, correctImgName = "";
+    let loadedImages  = [];
+    let clickPhase    = 0;
+    let correctRegion = 0, correctImgName = "";
     let correctImgIndex = 0;
-    let correctSide = "", gameActive = false;
+    let correctSide   = "", gameActive = false;
+
     let slots   = { single:null, left:null, right:null };
     let slotImg = { single:null, left:null, right:null };
     let slotVis = { single:false, left:false, right:false };
+
     let bigSlot = null, bigImg = null, bigVis = false;
 
-    // Phase-1 hint: small thumbnail in target cell
-    let hintVisible = false, hintImg = null, hintRegion = 0;
+    // Phase-1: small thumbnail in target cell (replaces text label entirely)
+    let hintVisible = false;
+    let hintImg     = null;
+    let hintRegion  = 0;
 
-    let nameBelowVisible=false, nameBelowText="";
-    let feedbackVisible=false, feedbackText="";
-    let currentAudio = null;
+    let nameBelowVisible = false, nameBelowText = "";
+    let feedbackVisible  = false, feedbackText  = "";
+    let currentAudio     = null;
 
     // -------------------------------------------------------
     // VIDEO
@@ -181,23 +178,39 @@
     const closeVideoBtn = document.getElementById("closeVideoBtn");
     let   loopTimer     = null;
 
-    // Position videoWrap over row 3, cols 2-4 (3 horizontal centre cells).
-    // Then size the iframe at YT_SCALE× and offset it so it's centred.
+    // Container: cols 2-4 (x = cellW..cellW*4), all rows (y = 0..GH)
+    // That's 3 cells wide × full height — gives maximum video size
+    // while still leaving col 1 and col 5 as visible game context.
     function positionVideoWrap() {
-        // Container = 3 cells wide × 1 cell tall (middle row)
-        let cw = Math.floor(cellW * 3);
-        let ch = Math.floor(cellH * 1);
-        let cx = Math.floor(cellW * 1);   // col-2 left edge
-        let cy = Math.floor(cellH * 2);   // row-3 top edge
+        let cw = Math.floor(cellW * 3);   // 3 cells wide
+        let ch = Math.floor(GH);          // full game height
+        let cx = Math.floor(cellW);       // start at col 2
+        let cy = 0;
 
         videoWrap.style.left   = cx + "px";
         videoWrap.style.top    = cy + "px";
         videoWrap.style.width  = cw + "px";
         videoWrap.style.height = ch + "px";
 
-        // Iframe is scaled up; centre it inside the container
-        let fw = Math.round(cw * YT_SCALE);
+        // Shorts are 9:16 portrait inside a landscape iframe.
+        // We want the actual portrait content to fill our container.
+        // Iframe is 16:9 landscape. Content column is 9/16 of iframe width.
+        // To make that column = cw:  iframeW = cw * (16/9)
+        // Then iframeH = iframeW * (9/16) = cw  ... but we want height = ch
+        // Best approach: fit a 9:16 rect inside cw×ch, then overscale iframe
+        // so its 9:16 content region exactly covers that rect.
+
+        // Content aspect for a Short = 9:16 (portrait)
+        // Iframe aspect = 16:9 (landscape)
+        // Content width inside iframe = iframe_w * (9/16)
+        // Content height inside iframe = iframe_h (full height)
+        // We want content_w >= cw AND content_h >= ch → find minimum iframe size.
+
+        // If we set iframe_h = ch * YT_SCALE:
+        //   iframe_w = iframe_h * (16/9)
+        //   content_w = iframe_w * (9/16) = iframe_h = ch * YT_SCALE  ← might be > cw ✓
         let fh = Math.round(ch * YT_SCALE);
+        let fw = Math.round(fh * 16 / 9);
         let fx = Math.round((cw - fw) / 2);
         let fy = Math.round((ch - fh) / 2);
 
@@ -210,7 +223,6 @@
     function openVideo() {
         closeMenu();
         positionVideoWrap();
-
         let src = "https://www.youtube.com/embed/" + VIDEO_ID
                 + "?autoplay=1"
                 + "&start=" + VID_START
@@ -218,7 +230,8 @@
                 + "&rel=0"
                 + "&modestbranding=1"
                 + "&controls=0"
-                + "&playsinline=1";
+                + "&playsinline=1"
+                + "&mute=0";
         videoIframe.src = src;
         videoWrap.classList.add("open");
 
@@ -397,24 +410,23 @@
         ctx.strokeRect(r.x,r.y,r.w,r.h);
     }
 
-    // Small thumbnail hint in the target cell (20% of full imgW/imgH, centred)
+    // 20% thumbnail centred in the target cell — NO text at all
     function drawHint(img, regionIdx) {
-        let c   = getCenter(regionIdx);
-        let tw  = Math.floor(imgW * 0.20);
-        let th  = Math.floor(imgH * 0.20);
-        let tx  = Math.floor(c.x - tw / 2);
-        let ty  = Math.floor(c.y - th / 2);
-        // Subtle border so it's visible on any bg colour
-        ctx.strokeStyle = "rgba(0,0,0,0.5)";
-        ctx.lineWidth   = 1;
+        let c  = getCenter(regionIdx);
+        let tw = Math.floor(imgW * 0.20);
+        let th = Math.floor(imgH * 0.20);
+        let tx = Math.floor(c.x - tw / 2);
+        let ty = Math.floor(c.y - th / 2);
         ctx.drawImage(img, tx, ty, tw, th);
+        ctx.strokeStyle = "rgba(0,0,0,0.6)";
+        ctx.lineWidth   = 1;
         ctx.strokeRect(tx, ty, tw, th);
     }
 
     function drawFittedLabel(text, cx, cy, maxW, maxH, bg, fg) {
         let pad = 10, fs = Math.floor(maxH * 0.275);
         ctx.font = "bold " + fs + "px Arial";
-        while (fs > 4 && ctx.measureText(text).width > maxW-pad*2) {
+        while (fs > 4 && ctx.measureText(text).width > maxW - pad*2) {
             fs--; ctx.font = "bold " + fs + "px Arial";
         }
         let tw = ctx.measureText(text).width;
@@ -444,6 +456,8 @@
     function render() {
         ctx.fillStyle = bgColor;
         ctx.fillRect(0,0,GW,GH);
+
+        // Grid lines
         ctx.strokeStyle="#000"; ctx.lineWidth=1;
         for (let i=1;i<=GRID_LINES;i++) {
             let x=GW*i/(GRID_LINES+1);
@@ -453,19 +467,26 @@
             let y=GH*i/(GRID_LINES+1);
             ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(GW,y);ctx.stroke();
         }
+
+        // Images
         ["single","left","right"].forEach(k => {
             if (slotVis[k]&&slotImg[k]&&slots[k]) drawImg(slotImg[k],slots[k]);
         });
+
+        // Big reveal image
         if (bigVis&&bigImg&&bigSlot) drawBigImg(bigImg,bigSlot);
 
-        // Phase-1 hint: tiny copy of primary image in target cell
+        // Phase-1 hint: 20% thumbnail in target cell — NO label text
         if (hintVisible && hintImg) drawHint(hintImg, hintRegion);
 
+        // Name below big image after correct answer
         if (nameBelowVisible) {
             let z = getLabelZone();
             drawFittedLabel(nameBelowText,z.cx,z.cy,z.zoneW,z.zoneH,
                 "rgba(60,180,60,0.97)","#fff");
         }
+
+        // Wrong feedback
         if (feedbackVisible) drawFeedback(feedbackText);
     }
 
@@ -522,38 +543,50 @@
     // GAME
     // -------------------------------------------------------
     async function phaseOne() {
-        gameActive=false; clickPhase=0;
+        gameActive = false; clickPhase = 0;
         setupLayout();
-        bigVis=false; bigImg=null; bigSlot=null;
-        nameBelowVisible=false;
-        hintVisible=false;
+        bigVis = false; bigImg = null; bigSlot = null;
+        nameBelowVisible = false;
+        hintVisible = false;   // ← reset hint
+        feedbackVisible = false;
 
         let i1=rnd(IMAGE_URLS.length), i2=rnd(IMAGE_URLS.length);
         while (i2===i1) i2=rnd(IMAGE_URLS.length);
 
-        correctImgIndex=i1; correctImgName=IMAGE_NAMES[i1];
-        correctRegion=Math.floor(Math.random()*GRID_ROWS*GRID_COLS)+1;
+        correctImgIndex = i1;
+        correctImgName  = IMAGE_NAMES[i1];
+        correctRegion   = Math.floor(Math.random()*GRID_ROWS*GRID_COLS)+1;
 
-        // Show primary image in centre cell + small hint thumbnail in target cell
-        slots.single=makeSlot(centerIdx); slotImg.single=loadedImages[i1];
-        slotVis.single=true; slotVis.left=slotVis.right=false;
+        // Show primary image in centre + 20% hint thumbnail in target cell
+        slots.single  = makeSlot(centerIdx);
+        slotImg.single = loadedImages[i1];
+        slotVis.single = true;
+        slotVis.left   = false;
+        slotVis.right  = false;
 
-        hintImg=loadedImages[i1]; hintRegion=correctRegion; hintVisible=true;
-        feedbackVisible=false;
-        render(); await sleep(SHOW_SINGLE_MS);
+        hintImg     = loadedImages[i1];   // same image, smaller
+        hintRegion  = correctRegion;
+        hintVisible = true;               // ← draw thumbnail, NOT text
 
-        slotVis.single=false; hintVisible=false; render();
+        render();
+        await sleep(SHOW_SINGLE_MS);
+
+        // Hide both before showing pair
+        slotVis.single = false;
+        hintVisible    = false;
+        render();
         await sleep(GAP_BEFORE_PAIR);
 
-        if (Math.random()<0.5) {
+        if (Math.random() < 0.5) {
             slotImg.left=loadedImages[i2]; slotImg.right=loadedImages[i1];
             correctSide="right";
         } else {
             slotImg.left=loadedImages[i1]; slotImg.right=loadedImages[i2];
             correctSide="left";
         }
-        slots.left=makeSlot(leftIdx); slots.right=makeSlot(rightIdx);
-        slotVis.left=slotVis.right=true;
+        slots.left  = makeSlot(leftIdx);
+        slots.right = makeSlot(rightIdx);
+        slotVis.left = slotVis.right = true;
         render(); clickPhase=1; gameActive=true;
     }
 
