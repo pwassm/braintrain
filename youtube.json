@@ -1,0 +1,16 @@
+{
+  "videos": [
+    {
+      "id": "X_dvUgqe9DI",
+      "label": "Shorebird Flight",
+      "start": 4,
+      "end": 10
+    },
+    {
+      "id": "dQw4w9WgXcQ",
+      "label": "Example Video 2",
+      "start": 0,
+      "end": 30
+    }
+  ]
+}

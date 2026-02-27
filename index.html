@@ -36,7 +36,7 @@
             background: rgba(25,25,25,0.96);
             border-radius: 10px; overflow: hidden;
             display: none; flex-direction: column;
-            min-width: 180px;
+            min-width: 200px;
             box-shadow: 0 4px 24px rgba(0,0,0,0.5);
         }
         #menuPanel.open { display: flex; }
@@ -49,13 +49,39 @@
         .menu-item:last-child { border-bottom: none; }
         .menu-item:hover, .menu-item:active { background: rgba(255,255,255,0.12); }
         .menu-item.active-set { color: #6f6; }
+        .menu-item.video-item { color: #7df; }   /* teal tint for video entries */
         .menu-divider { height:1px; background:rgba(255,255,255,0.15); margin:2px 0; }
 
-        /*
-         * videoWrap + ytDiv live INSIDE rotateWrap so they share
-         * the canvas rotation transform automatically.
-         * Size and position are set in JS after cellW/cellH are known.
-         */
+        /* -- video sub-menu (second panel, same drop-up style) -- */
+        #videoMenu {
+            position: fixed;
+            bottom: 70px; right: 14px;
+            z-index: 997;
+            background: rgba(20,20,40,0.97);
+            border-radius: 10px; overflow: hidden;
+            display: none; flex-direction: column;
+            min-width: 220px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+        }
+        #videoMenu.open { display: flex; }
+        .video-menu-header {
+            padding: 10px 18px;
+            color: #aaa;
+            font: bold 12px Arial, sans-serif;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(255,255,255,0.12);
+        }
+        .video-choice {
+            padding: 13px 18px; color: #7df;
+            font: 15px Arial, sans-serif;
+            cursor: pointer; white-space: nowrap;
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+        }
+        .video-choice:last-child { border-bottom: none; }
+        .video-choice:hover, .video-choice:active { background: rgba(255,255,255,0.1); }
+
+        /* -- video wrap -- */
         #videoWrap {
             display: none;
             position: absolute;
@@ -64,18 +90,10 @@
             background: #000;
         }
         #videoWrap.open { display: block; }
-
-        /* ytDiv is the div that YT.Player() replaces with an iframe */
-        #ytDiv {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-        }
-
+        #ytDiv { position: absolute; top:0; left:0; width:100%; height:100%; }
         #closeVideoBtn {
             position: absolute;
-            top: 4px; right: 4px;
-            z-index: 20;
+            top: 4px; right: 4px; z-index: 20;
             background: rgba(20,20,20,0.85);
             color: #fff; border: none; border-radius: 6px;
             font-size: 16px; width: 28px; height: 28px;
@@ -90,7 +108,6 @@
 <div id="rotateWrap">
     <canvas id="gameCanvas"></canvas>
     <div id="videoWrap">
-        <!-- YT.Player replaces this div with an iframe -->
         <div id="ytDiv"></div>
         <button id="closeVideoBtn" aria-label="Close">?</button>
     </div>
@@ -99,15 +116,22 @@
 <button id="menuBtn" aria-label="Menu">
     <span></span><span></span><span></span>
 </button>
+
+<!-- Main hamburger panel -->
 <div id="menuPanel">
     <div class="menu-item" id="miPlay">?&nbsp;&nbsp;Play</div>
     <div class="menu-item" id="miConfig">?&nbsp;&nbsp;Config</div>
     <div class="menu-item" id="miHelp">?&nbsp;&nbsp;Help</div>
     <div class="menu-divider" id="miDivider"></div>
+    <!-- set items appended here -->
 </div>
 
-<!-- Load YouTube IFrame API — this is the ONLY reliable way to get
-     onReady / onStateChange / seekTo working cross-browser -->
+<!-- Video sub-menu panel -->
+<div id="videoMenu">
+    <div class="video-menu-header">? &nbsp;Choose Video</div>
+    <!-- video choices appended here by buildVideoMenu() -->
+</div>
+
 <script src="https://www.youtube.com/iframe_api"></script>
 
 <script>
@@ -119,6 +143,9 @@
     let AUDIO_FILES = [];
     let allSets        = [];
     let activeSetIndex = 0;
+
+    // youtube.json entries
+    let allVideos = [];   // [{ id, label, start, end }, ...]
 
     const GRID_LINES       = 4;
     const GRID_COLS        = GRID_LINES + 1;
@@ -135,6 +162,7 @@
     let wrap      = document.getElementById("rotateWrap");
     let menuBtn   = document.getElementById("menuBtn");
     let menuPanel = document.getElementById("menuPanel");
+    let videoMenu = document.getElementById("videoMenu");
 
     let GW, GH, cellW, cellH, imgW, imgH;
     let isPortrait, bgColor;
@@ -154,32 +182,64 @@
     let currentAudio     = null;
 
     // -------------------------------------------------------
-    // VIDEO — uses real YT IFrame API (loaded via script tag above)
+    // VIDEO
     // -------------------------------------------------------
-    const VIDEO_ID  = "X_dvUgqe9DI";
-    const VID_START = 4;
-    const VID_END   = 10;
-
     const videoWrap     = document.getElementById("videoWrap");
     const closeVideoBtn = document.getElementById("closeVideoBtn");
 
-    let ytPlayer      = null;   // YT.Player instance
-    let ytAPIReady    = false;  // true when YouTube API fires onYouTubeIframeAPIReady
-    let loopInterval  = null;
-    let seekDebounce  = false;
+    let ytPlayer     = null;
+    let ytAPIReady   = false;
+    let loopInterval = null;
+    let seekDebounce = false;
+    let currentVideo = null;   // the currently playing { id, label, start, end }
 
-    // Called automatically by the YT API script when it's loaded
     window.onYouTubeIframeAPIReady = function() {
         ytAPIReady = true;
-        console.log("YT API ready");
     };
 
+    // Build the video sub-menu from allVideos
+    function buildVideoMenu() {
+        // Remove old choices
+        document.querySelectorAll(".video-choice").forEach(el => el.remove());
+
+        if (!allVideos.length) {
+            let el = document.createElement("div");
+            el.className = "video-choice";
+            el.style.color = "#888";
+            el.textContent = "(no videos in youtube.json)";
+            videoMenu.appendChild(el);
+            return;
+        }
+
+        allVideos.forEach((vid, i) => {
+            let el = document.createElement("div");
+            el.className = "video-choice";
+            el.textContent = vid.label || ("Video " + (i+1));
+            el.addEventListener("pointerup", e => {
+                e.stopPropagation();
+                closeVideoMenu();
+                closeMenu();
+                openVideo(vid);
+            });
+            videoMenu.appendChild(el);
+        });
+    }
+
+    function openVideoMenu() {
+        // Close main menu, open video sub-menu
+        menuPanel.classList.remove("open");
+        menuBtn.classList.remove("open");
+        videoMenu.classList.add("open");
+    }
+
+    function closeVideoMenu() {
+        videoMenu.classList.remove("open");
+    }
+
+    // Stop clicks on videoMenu from bubbling to document (which would call handleTap)
+    videoMenu.addEventListener("pointerup", e => e.stopPropagation());
+
     function positionVideoWrap() {
-        // col 3, rows 2-4 in game coords:
-        //   x = cellW * 2  (left edge of col 3)
-        //   y = cellH * 1  (top edge of row 2)
-        //   w = cellW * 1  (one cell wide)
-        //   h = cellH * 3  (three cells tall)
         let cx = Math.floor(cellW * 2);
         let cy = Math.floor(cellH * 1);
         let cw = Math.floor(cellW);
@@ -190,32 +250,31 @@
         videoWrap.style.width  = cw + "px";
         videoWrap.style.height = ch + "px";
 
-        // The YT iframe is 16:9. A Short is 9:16 pillarboxed inside it.
-        // We set iframe height = ch, width = ch*(16/9), centered.
-        // Content column = iframe_w * (9/16) = ch — fills height perfectly,
-        // overflows left/right where overflow:hidden clips black bars.
+        // iframe is 16:9; Shorts are 9:16 pillarboxed inside.
+        // Set iframe_h = ch so content fills height.
+        // iframe_w = ch*(16/9), centred; overflow:hidden crops black side bars.
         if (ytPlayer && ytPlayer.getIframe) {
             let iframe = ytPlayer.getIframe();
             let fw = Math.round(ch * 16 / 9);
             let fx = Math.round((cw - fw) / 2);
-            iframe.style.width  = fw + "px";
-            iframe.style.height = ch + "px";
             iframe.style.position = "absolute";
-            iframe.style.left   = fx + "px";
-            iframe.style.top    = "0px";
+            iframe.style.width    = fw + "px";
+            iframe.style.height   = ch + "px";
+            iframe.style.left     = fx + "px";
+            iframe.style.top      = "0px";
         }
     }
 
-    function openVideo() {
-        closeMenu();
-
-        // Must have layout calculated first
-        setupLayout();
+    function openVideo(vid) {
+        currentVideo = vid;
+        setupLayout();   // ensure cellW/cellH are current
 
         let cx = Math.floor(cellW * 2);
         let cy = Math.floor(cellH * 1);
         let cw = Math.floor(cellW);
         let ch = Math.floor(cellH * 3);
+        let fw = Math.round(ch * 16 / 9);
+        let fx = Math.round((cw - fw) / 2);
 
         videoWrap.style.left   = cx + "px";
         videoWrap.style.top    = cy + "px";
@@ -223,32 +282,29 @@
         videoWrap.style.height = ch + "px";
         videoWrap.classList.add("open");
 
-        // iframe sized to fill height, overflow clips pillarbox bars
-        let fw = Math.round(ch * 16 / 9);
-        let fx = Math.round((cw - fw) / 2);
-
-        if (ytPlayer) {
-            // Already created — just seek and play
+        function applyIframeSize() {
             let iframe = ytPlayer.getIframe();
+            iframe.style.position = "absolute";
             iframe.style.width    = fw + "px";
             iframe.style.height   = ch + "px";
-            iframe.style.position = "absolute";
             iframe.style.left     = fx + "px";
             iframe.style.top      = "0px";
-            ytPlayer.seekTo(VID_START, true);
-            ytPlayer.playVideo();
+        }
+
+        if (ytPlayer) {
+            // Player already exists — load new video
+            applyIframeSize();
+            ytPlayer.loadVideoById({
+                videoId:   vid.id,
+                startSeconds: vid.start
+            });
             startLoopWatcher();
             return;
         }
 
-        if (!ytAPIReady) {
-            // API not ready yet — retry in 300ms
-            setTimeout(openVideo, 300);
-            return;
-        }
+        if (!ytAPIReady) { setTimeout(() => openVideo(vid), 300); return; }
 
-        // Replace #ytDiv with a real YT.Player iframe
-        // Reset the div in case it was replaced before
+        // Reset placeholder div
         let ytDiv = document.getElementById("ytDiv");
         if (!ytDiv) {
             ytDiv = document.createElement("div");
@@ -257,39 +313,39 @@
         }
 
         ytPlayer = new YT.Player("ytDiv", {
-            width:  fw,
-            height: ch,
-            videoId: VIDEO_ID,
+            width:   fw,
+            height:  ch,
+            videoId: vid.id,
             playerVars: {
-                autoplay:        1,
-                start:           VID_START,
-                controls:        0,
-                rel:             0,
-                modestbranding:  1,
-                playsinline:     1,
-                enablejsapi:     1
+                autoplay:       1,
+                start:          vid.start,
+                controls:       0,
+                rel:            0,
+                modestbranding: 1,
+                playsinline:    1,
+                enablejsapi:    1
             },
             events: {
                 onReady: function(e) {
-                    // Size the iframe correctly
-                    let iframe = ytPlayer.getIframe();
-                    iframe.style.width    = fw + "px";
-                    iframe.style.height   = ch + "px";
-                    iframe.style.position = "absolute";
-                    iframe.style.left     = fx + "px";
-                    iframe.style.top      = "0px";
+                    applyIframeSize();
                     e.target.playVideo();
                     startLoopWatcher();
                 },
                 onStateChange: function(e) {
-                    // State 0 = ended ? loop back
                     if (e.data === YT.PlayerState.ENDED) {
-                        ytPlayer.seekTo(VID_START, true);
-                        ytPlayer.playVideo();
+                        doSeekLoop();
                     }
                 }
             }
         });
+    }
+
+    function doSeekLoop() {
+        if (!currentVideo || seekDebounce) return;
+        seekDebounce = true;
+        ytPlayer.seekTo(currentVideo.start, true);
+        ytPlayer.playVideo();
+        setTimeout(() => { seekDebounce = false; }, 800);
     }
 
     function startLoopWatcher() {
@@ -297,13 +353,12 @@
         loopInterval = setInterval(() => {
             if (!videoWrap.classList.contains("open")) return;
             if (!ytPlayer || typeof ytPlayer.getCurrentTime !== "function") return;
-            let t = ytPlayer.getCurrentTime();
-            if (!seekDebounce && t >= VID_END) {
-                seekDebounce = true;
-                ytPlayer.seekTo(VID_START, true);
-                ytPlayer.playVideo();
-                setTimeout(() => { seekDebounce = false; }, 800);
-            }
+            try {
+                let t = ytPlayer.getCurrentTime();
+                if (!seekDebounce && currentVideo && t >= currentVideo.end) {
+                    doSeekLoop();
+                }
+            } catch(e) {}
         }, 250);
     }
 
@@ -311,6 +366,7 @@
         videoWrap.classList.remove("open");
         if (loopInterval) { clearInterval(loopInterval); loopInterval = null; }
         if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+        currentVideo = null;
     }
 
     closeVideoBtn.addEventListener("pointerup", e => { e.stopPropagation(); closeVideo(); });
@@ -343,17 +399,21 @@
 
     menuBtn.addEventListener("pointerup", e => {
         e.stopPropagation();
+        closeVideoMenu();
         let isOpen = menuPanel.classList.toggle("open");
         menuBtn.classList.toggle("open", isOpen);
     });
     menuPanel.addEventListener("pointerup", e => e.stopPropagation());
 
-    addMenuAction("miPlay",   () => openVideo());
+    // Play ? show video sub-menu
+    addMenuAction("miPlay", () => openVideoMenu());
     addMenuAction("miConfig", () => { closeMenu(); alert("Config — coming soon"); });
     addMenuAction("miHelp",   () => { closeMenu(); alert("Help — coming soon"); });
 
     function handleDocPointerUp(e) {
-        if (menuPanel.classList.contains("open")) { closeMenu(); return; }
+        // Close either menu if open
+        if (videoMenu.classList.contains("open"))  { closeVideoMenu(); return; }
+        if (menuPanel.classList.contains("open"))  { closeMenu();      return; }
         handleTap(e.clientX, e.clientY);
     }
     document.addEventListener("pointerup", handleDocPointerUp);
@@ -465,8 +525,7 @@
         let tx = Math.floor(c.x - tw / 2);
         let ty = Math.floor(c.y - th / 2);
         ctx.drawImage(img, tx, ty, tw, th);
-        ctx.strokeStyle = "rgba(0,0,0,0.6)";
-        ctx.lineWidth   = 1;
+        ctx.strokeStyle = "rgba(0,0,0,0.6)"; ctx.lineWidth = 1;
         ctx.strokeRect(tx, ty, tw, th);
     }
 
@@ -501,8 +560,7 @@
     }
 
     function render() {
-        ctx.fillStyle = bgColor;
-        ctx.fillRect(0,0,GW,GH);
+        ctx.fillStyle = bgColor; ctx.fillRect(0,0,GW,GH);
         ctx.strokeStyle="#000"; ctx.lineWidth=1;
         for (let i=1;i<=GRID_LINES;i++) {
             let x=GW*i/(GRID_LINES+1);
@@ -581,45 +639,29 @@
         gameActive = false; clickPhase = 0;
         setupLayout();
         bigVis = false; bigImg = null; bigSlot = null;
-        nameBelowVisible = false;
-        hintVisible = false;
-        feedbackVisible = false;
+        nameBelowVisible = false; hintVisible = false; feedbackVisible = false;
 
         let i1=rnd(IMAGE_URLS.length), i2=rnd(IMAGE_URLS.length);
         while (i2===i1) i2=rnd(IMAGE_URLS.length);
 
-        correctImgIndex = i1;
-        correctImgName  = IMAGE_NAMES[i1];
-        correctRegion   = Math.floor(Math.random()*GRID_ROWS*GRID_COLS)+1;
+        correctImgIndex = i1; correctImgName = IMAGE_NAMES[i1];
+        correctRegion = Math.floor(Math.random()*GRID_ROWS*GRID_COLS)+1;
 
-        slots.single   = makeSlot(centerIdx);
-        slotImg.single = loadedImages[i1];
-        slotVis.single = true;
-        slotVis.left   = false;
-        slotVis.right  = false;
+        slots.single=makeSlot(centerIdx); slotImg.single=loadedImages[i1];
+        slotVis.single=true; slotVis.left=false; slotVis.right=false;
+        hintImg=loadedImages[i1]; hintRegion=correctRegion; hintVisible=true;
+        render(); await sleep(SHOW_SINGLE_MS);
 
-        hintImg     = loadedImages[i1];
-        hintRegion  = correctRegion;
-        hintVisible = true;
-
-        render();
-        await sleep(SHOW_SINGLE_MS);
-
-        slotVis.single = false;
-        hintVisible    = false;
-        render();
+        slotVis.single=false; hintVisible=false; render();
         await sleep(GAP_BEFORE_PAIR);
 
-        if (Math.random() < 0.5) {
-            slotImg.left=loadedImages[i2]; slotImg.right=loadedImages[i1];
-            correctSide="right";
+        if (Math.random()<0.5) {
+            slotImg.left=loadedImages[i2]; slotImg.right=loadedImages[i1]; correctSide="right";
         } else {
-            slotImg.left=loadedImages[i1]; slotImg.right=loadedImages[i2];
-            correctSide="left";
+            slotImg.left=loadedImages[i1]; slotImg.right=loadedImages[i2]; correctSide="left";
         }
-        slots.left  = makeSlot(leftIdx);
-        slots.right = makeSlot(rightIdx);
-        slotVis.left = slotVis.right = true;
+        slots.left=makeSlot(leftIdx); slots.right=makeSlot(rightIdx);
+        slotVis.left=slotVis.right=true;
         render(); clickPhase=1; gameActive=true;
     }
 
@@ -635,9 +677,7 @@
         render(); await sleep(300); phaseOne();
     }
 
-    function hitTest(gx,gy,r) {
-        return r&&gx>=r.x&&gx<=r.x+r.w&&gy>=r.y&&gy<=r.y+r.h;
-    }
+    function hitTest(gx,gy,r) { return r&&gx>=r.x&&gx<=r.x+r.w&&gy>=r.y&&gy<=r.y+r.h; }
 
     function handleTap(px, py) {
         if (!gameActive) return;
@@ -673,24 +713,26 @@
     window.addEventListener("orientationchange", ()=>{ setTimeout(()=>{ setupLayout(); render(); },350); });
 
     // -------------------------------------------------------
-    // STARTUP
+    // STARTUP — fetch both assets.json and youtube.json in parallel
     // -------------------------------------------------------
-    fetch("assets.json?v=" + Date.now())
-        .then(r => r.json())
-        .then(data => {
-            allSets = data.sets || [];
-            if (!allSets.length) throw new Error("No sets in assets.json");
-            activeSetIndex = 0;
-            buildMenuItems();
-            loadSet(allSets[0], ()=>{ setupLayout(); render(); phaseOne(); });
-        })
-        .catch(err => {
-            console.error("assets.json error:", err);
-            setupLayout();
-            ctx.fillStyle="#fff"; ctx.fillRect(0,0,GW||400,GH||300);
-            ctx.fillStyle="#c00"; ctx.font="bold 18px Arial";
-            ctx.fillText("Error: could not load assets.json",20,(GH||300)/2);
-        });
+    Promise.all([
+        fetch("assets.json?v="  + Date.now()).then(r => r.json()),
+        fetch("youtube.json?v=" + Date.now()).then(r => r.json()).catch(() => ({ videos:[] }))
+    ]).then(([assetData, ytData]) => {
+        allSets   = assetData.sets  || [];
+        allVideos = ytData.videos   || [];
+        if (!allSets.length) throw new Error("No sets in assets.json");
+        activeSetIndex = 0;
+        buildMenuItems();
+        buildVideoMenu();
+        loadSet(allSets[0], ()=>{ setupLayout(); render(); phaseOne(); });
+    }).catch(err => {
+        console.error("Startup error:", err);
+        setupLayout();
+        ctx.fillStyle="#fff"; ctx.fillRect(0,0,GW||400,GH||300);
+        ctx.fillStyle="#c00"; ctx.font="bold 18px Arial";
+        ctx.fillText("Error: " + err.message, 20, (GH||300)/2);
+    });
 </script>
 </body>
 </html>
