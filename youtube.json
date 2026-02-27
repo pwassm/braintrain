@@ -2,15 +2,15 @@
   "videos": [
     {
       "id": "X_dvUgqe9DI",
-      "label": "Shorebird Flight",
-      "start": 4,
-      "end": 10
+      "label": "Serving Underspin",
+      "start": 2,
+      "end": 12
     },
     {
-      "id": "dQw4w9WgXcQ",
-      "label": "Example Video 2",
-      "start": 0,
-      "end": 30
+      "id": "K738pe3dMK0",
+      "label": "Single Arm Drill for freestyle",
+      "start": 4,
+      "end": 38
     }
   ]
 }
