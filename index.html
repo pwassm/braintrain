@@ -53,42 +53,36 @@
         .menu-item.active-set { color: #6f6; }
         .menu-divider { height: 1px; background: rgba(255,255,255,0.15); margin: 2px 0; }
 
-        /* ── Video overlay ── */
-        #videoOverlay {
+        /*
+         * videoWrap sits INSIDE #rotateWrap so it shares the same
+         * canvas coordinate system (already rotated if portrait).
+         * Positioned absolutely over the 3 centre cells.
+         */
+        #videoWrap {
             display: none;
-            position: fixed;
-            inset: 0;
-            z-index: 1000;
+            position: absolute;   /* inside rotateWrap */
+            z-index: 10;
+            overflow: hidden;
             background: #000;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
         }
-        #videoOverlay.open { display: flex; }
+        #videoWrap.open { display: block; }
 
-        #videoOverlay .block {
-            flex: 1;
-            width: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
+        #videoIframe {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            border: none;
         }
-        #videoOverlay .block.top-block,
-        #videoOverlay .block.bottom-block { background: #111; }
-        #videoOverlay .block.video-block  { background: #000; }
-
-        #videoIframe { width: 100%; height: 100%; border: none; }
 
         #closeVideoBtn {
             position: absolute;
-            top: 10px; right: 10px;
-            z-index: 1001;
-            background: rgba(40,40,40,0.9);
+            top: 6px; right: 6px;
+            z-index: 20;
+            background: rgba(20,20,20,0.85);
             color: #fff;
-            border: none; border-radius: 8px;
-            font-size: 22px;
-            width: 40px; height: 40px;
+            border: none; border-radius: 7px;
+            font-size: 18px;
+            width: 34px; height: 34px;
             cursor: pointer;
             display: flex; align-items: center; justify-content: center;
             touch-action: manipulation;
@@ -99,6 +93,15 @@
 
 <div id="rotateWrap">
     <canvas id="gameCanvas"></canvas>
+
+    <!-- Video lives inside rotateWrap — shares same transform -->
+    <div id="videoWrap">
+        <button id="closeVideoBtn" aria-label="Close">✕</button>
+        <iframe id="videoIframe" src=""
+            allow="autoplay; encrypted-media; gyroscope"
+            allowfullscreen>
+        </iframe>
+    </div>
 </div>
 
 <button id="menuBtn" aria-label="Menu">
@@ -106,27 +109,10 @@
 </button>
 
 <div id="menuPanel">
-    <!-- Fixed items always present in DOM -->
     <div class="menu-item" id="miPlay">▶&nbsp;&nbsp;Play</div>
     <div class="menu-item" id="miConfig">⚙&nbsp;&nbsp;Config</div>
     <div class="menu-item" id="miHelp">?&nbsp;&nbsp;Help</div>
     <div class="menu-divider" id="miDivider"></div>
-    <!-- Set items injected below the divider by buildMenuItems() -->
-</div>
-
-<!-- Video overlay -->
-<div id="videoOverlay">
-    <div class="block top-block"></div>
-    <div class="block video-block">
-        <button id="closeVideoBtn" aria-label="Close">✕</button>
-        <iframe
-            id="videoIframe"
-            src=""
-            allow="autoplay; encrypted-media"
-            allowfullscreen
-        ></iframe>
-    </div>
-    <div class="block bottom-block"></div>
 </div>
 
 <script>
@@ -140,8 +126,8 @@
     let activeSetIndex = 0;
 
     const GRID_LINES       = 4;
-    const GRID_COLS        = GRID_LINES + 1;
-    const GRID_ROWS        = GRID_LINES + 1;
+    const GRID_COLS        = GRID_LINES + 1;   // 5
+    const GRID_ROWS        = GRID_LINES + 1;   // 5
     const SHOW_SINGLE_MS   = 1000;
     const GAP_BEFORE_PAIR  = 500;
     const CORRECT_FLASH_MS = 1500;
@@ -172,80 +158,99 @@
     let currentAudio = null;
 
     // -------------------------------------------------------
-    // VIDEO OVERLAY
+    // VIDEO  — positioned over the 3 horizontal centre cells
+    //          (row 3, cols 2-4 in 1-based grid = game-coords)
     // -------------------------------------------------------
     const VIDEO_ID      = "X_dvUgqe9DI";
-    const VID_START     = 5;
-    const VID_END       = 12;
-    const videoOverlay  = document.getElementById("videoOverlay");
+    const VID_START     = 4;
+    const VID_END       = 10;
+
+    const videoWrap     = document.getElementById("videoWrap");
     const videoIframe   = document.getElementById("videoIframe");
     const closeVideoBtn = document.getElementById("closeVideoBtn");
-    let loopInterval    = null;
+    let   loopTimer     = null;
+
+    // Place videoWrap over the 3 middle cells in game (canvas) coords.
+    // Row 3, cols 2-4 → x: cellW*1, y: cellH*2, w: cellW*3, h: cellH*1
+    function positionVideoWrap() {
+        let x = Math.floor(cellW * 1);          // col 2 left edge
+        let y = Math.floor(cellH * 2);          // row 3 top edge
+        let w = Math.floor(cellW * 3);          // 3 cells wide
+        let h = Math.floor(cellH * 1);          // 1 cell tall
+        videoWrap.style.left   = x + "px";
+        videoWrap.style.top    = y + "px";
+        videoWrap.style.width  = w + "px";
+        videoWrap.style.height = h + "px";
+    }
 
     function openVideo() {
         closeMenu();
-        let src = "https://www.youtube.com/embed/" + VIDEO_ID
-                + "?autoplay=1&start=" + VID_START
-                + "&enablejsapi=1&loop=1&playlist=" + VIDEO_ID;
-        videoIframe.src = src;
-        videoOverlay.classList.add("open");
+        positionVideoWrap();
 
-        // Poll for currentTime via YT IFrame postMessage API
-        loopInterval = setInterval(() => {
+        // Build src — enablejsapi lets us postMessage seek commands
+        let src = "https://www.youtube.com/embed/" + VIDEO_ID
+                + "?autoplay=1"
+                + "&start=" + VID_START
+                + "&enablejsapi=1"
+                + "&rel=0"
+                + "&modestbranding=1"
+                + "&controls=0"
+                + "&mute=0";
+        videoIframe.src = src;
+        videoWrap.classList.add("open");
+
+        // Poll YT for currentTime every 300 ms; seek back to VID_START at VID_END
+        loopTimer = setInterval(() => {
             try {
                 videoIframe.contentWindow.postMessage(
                     JSON.stringify({ event:"command", func:"getCurrentTime", args:[] }), "*"
                 );
             } catch(e) {}
-        }, 500);
+        }, 300);
     }
 
     function closeVideo() {
-        videoOverlay.classList.remove("open");
+        videoWrap.classList.remove("open");
         videoIframe.src = "";
-        if (loopInterval) { clearInterval(loopInterval); loopInterval = null; }
+        if (loopTimer) { clearInterval(loopTimer); loopTimer = null; }
     }
 
+    // YT IFrame API message handler — seek back when we hit VID_END
     window.addEventListener("message", ev => {
-        if (!videoOverlay.classList.contains("open")) return;
+        if (!videoWrap.classList.contains("open")) return;
         try {
-            let d = JSON.parse(ev.data);
+            let d = (typeof ev.data === "string") ? JSON.parse(ev.data) : ev.data;
+            // currentTime arrives in d.info.currentTime
             if (d && d.info && typeof d.info.currentTime === "number") {
                 if (d.info.currentTime >= VID_END) {
                     videoIframe.contentWindow.postMessage(
-                        JSON.stringify({ event:"command", func:"seekTo", args:[VID_START, true] }), "*"
+                        JSON.stringify({ event:"command", func:"seekTo",
+                                         args:[VID_START, true] }), "*"
                     );
                 }
             }
         } catch(e) {}
     });
 
-    function addMenuAction(id, fn) {
-        let el = document.getElementById(id);
-        el.addEventListener("pointerup", e => {
-            e.stopPropagation();
-            fn();
-        });
-    }
-
     closeVideoBtn.addEventListener("pointerup", e => { e.stopPropagation(); closeVideo(); });
 
     // -------------------------------------------------------
-    // MENU
+    // MENU helpers
     // -------------------------------------------------------
-    function buildMenuItems() {
-        // Remove only previously injected set items
-        document.querySelectorAll(".menu-set-item").forEach(el => el.remove());
+    function addMenuAction(id, fn) {
+        document.getElementById(id).addEventListener("pointerup", e => {
+            e.stopPropagation(); fn();
+        });
+    }
 
+    function buildMenuItems() {
+        document.querySelectorAll(".menu-set-item").forEach(el => el.remove());
         allSets.forEach((set, i) => {
             let el = document.createElement("div");
             el.className = "menu-item menu-set-item" +
                            (i === activeSetIndex ? " active-set" : "");
             el.textContent = (i === activeSetIndex ? "✓  " : "     ") + set.name;
-            el.addEventListener("pointerup", e => {
-                e.stopPropagation();
-                switchSet(i);
-            });
+            el.addEventListener("pointerup", e => { e.stopPropagation(); switchSet(i); });
             menuPanel.appendChild(el);
         });
     }
@@ -255,31 +260,21 @@
         menuBtn.classList.remove("open");
     }
 
-    function toggleMenu(e) {
+    menuBtn.addEventListener("pointerup", e => {
         e.stopPropagation();
         let isOpen = menuPanel.classList.toggle("open");
         menuBtn.classList.toggle("open", isOpen);
-    }
-
-    // Use pointerup for all menu interactions — avoids click/touch double-fire
-    menuBtn.addEventListener("pointerup", toggleMenu);
-
-    // Stop pointer events on the panel from bubbling to document (which would close menu or trigger game)
+    });
     menuPanel.addEventListener("pointerup", e => e.stopPropagation());
 
     addMenuAction("miPlay",   () => openVideo());
     addMenuAction("miConfig", () => { closeMenu(); alert("Config — coming soon"); });
     addMenuAction("miHelp",   () => { closeMenu(); alert("Help — coming soon"); });
 
-    // Tap on canvas closes menu (but does NOT trigger game if menu was open)
     function handleDocPointerUp(e) {
-        if (menuPanel.classList.contains("open")) {
-            closeMenu();
-            return; // swallow tap — don't pass to game
-        }
+        if (menuPanel.classList.contains("open")) { closeMenu(); return; }
         handleTap(e.clientX, e.clientY);
     }
-
     document.addEventListener("pointerup", handleDocPointerUp);
 
     // -------------------------------------------------------
@@ -320,6 +315,9 @@
             imgH = Math.floor(maxH);
             imgW = Math.floor(maxH * 16 / 9);
         }
+
+        // Re-position video if currently open
+        if (videoWrap.classList.contains("open")) positionVideoWrap();
     }
 
     function toGame(px, py) {
@@ -380,7 +378,7 @@
         ctx.strokeRect(r.x,r.y,r.w,r.h);
     }
 
-    // Phase-1 name: halved (cellMin/10 instead of /5)
+    // Phase-1 name: halved
     function drawLabel(text, cx, cy, bg, fg, fsOverride) {
         let fs = fsOverride || Math.max(6, Math.floor(Math.min(cellW,cellH)/10));
         ctx.font = "bold " + fs + "px Arial";
@@ -394,7 +392,7 @@
         ctx.fillText(text, bx+pad, by+pad+fs*0.85);
     }
 
-    // Name below big image: halved (maxH*0.275 instead of *0.55)
+    // Name below big image: halved
     function drawFittedLabel(text, cx, cy, maxW, maxH, bg, fg) {
         let pad = 10, fs = Math.floor(maxH * 0.275);
         ctx.font = "bold " + fs + "px Arial";
@@ -411,7 +409,7 @@
         ctx.fillText(text, bx+pad, by+pad+fs*0.85);
     }
 
-    // WRONG feedback: halved (GH/10 instead of GH/5)
+    // WRONG feedback: halved
     function drawFeedback(text) {
         let fs = Math.max(12, Math.floor(GH/10));
         ctx.font = "bold " + fs + "px Arial";
@@ -491,7 +489,6 @@
         IMAGE_NAMES = set.items.map(it => it.label);
         AUDIO_FILES = set.items.map(it => `${set.folder}/${it.base}.mp3`);
         loadedImages = [];
-        console.log("Loading set:", set.name, IMAGE_URLS);
         preloadImages(cb);
     }
 
@@ -557,8 +554,7 @@
 
     function handleTap(px, py) {
         if (!gameActive) return;
-        // If video overlay is open, ignore game taps
-        if (videoOverlay.classList.contains("open")) return;
+        if (videoWrap.classList.contains("open")) return;
         let g=toGame(px,py), gx=g.x, gy=g.y;
         if (clickPhase===1) {
             let hl=hitTest(gx,gy,slots.left), hr=hitTest(gx,gy,slots.right);
