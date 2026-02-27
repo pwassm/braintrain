@@ -221,52 +221,73 @@
     function togglePlay() { if (playExpanded) collapsePlay(); else expandPlay(); }
 
     function positionVideoWrap() {
-        let cx = Math.floor(cellW * 2);
+        if (!currentVideo) return;
+        // Wait for the auto-sensing to finish
+        if (currentVideo.isLandscape === undefined) return;
+        
+        let isL = currentVideo.isLandscape;
+        
+        // Portrait (Short) = center column (1x3). Landscape = center 9 blocks (3x3).
+        let cx = Math.floor(isL ? cellW * 1 : cellW * 2);
         let cy = Math.floor(cellH * 1);
-        let cw = Math.floor(cellW);
+        let cw = Math.floor(isL ? cellW * 3 : cellW);
         let ch = Math.floor(cellH * 3);
+
         videoWrap.style.left   = cx + "px";
         videoWrap.style.top    = cy + "px";
         videoWrap.style.width  = cw + "px";
         videoWrap.style.height = ch + "px";
 
         if (ytPlayer && ytPlayer.getIframe) {
-            let fw = Math.round(ch * 16 / 9);
-            let fx = Math.round((cw - fw) / 2);
-            let iframe = ytPlayer.getIframe();
-            iframe.style.position = "absolute";
-            iframe.style.width    = fw + "px";
-            iframe.style.height   = ch + "px";
-            iframe.style.left     = fx + "px";
-            iframe.style.top      = "0px";
+            try {
+                let iframe = ytPlayer.getIframe();
+                if (iframe) {
+                    // For landscape, fill the 3x3 grid cleanly. For shorts, center the 9:16 crop.
+                    let fw = isL ? cw : Math.round(ch * 16 / 9);
+                    let fx = isL ? 0  : Math.round((cw - fw) / 2);
+                    
+                    iframe.style.position = "absolute";
+                    iframe.style.width    = fw + "px";
+                    iframe.style.height   = ch + "px";
+                    iframe.style.left     = fx + "px";
+                    iframe.style.top      = "0px";
+                }
+            } catch(e) {}
         }
     }
 
-    function openVideo(vid) {
+    async function openVideo(vid) {
         currentVideo = vid;
         videoOpen    = true;
-        setupLayout();
+        renderGridOnly(); // Immediately clear game grid so the user sees a response
 
-        let cw = Math.floor(cellW);
-        let ch = Math.floor(cellH * 3);
-        let fw = Math.round(ch * 16 / 9);
-        let fx = Math.round((cw - fw) / 2);
-
-        positionVideoWrap();
-        videoWrap.classList.add("open");
-        renderGridOnly();
-
-        function applyIframeSize() {
-            let iframe = ytPlayer.getIframe();
-            iframe.style.position = "absolute";
-            iframe.style.width    = fw + "px";
-            iframe.style.height   = ch + "px";
-            iframe.style.left     = fx + "px";
-            iframe.style.top      = "0px";
+        // SENSE LANDSCAPE VS SHORT
+        if (vid.isLandscape === undefined) {
+            try {
+                // If a shorts URL redirects to the watch URL, YouTube classifies it as a Landscape video
+                let proxyUrl = "https://api.allorigins.win/get?url=" + encodeURIComponent("https://www.youtube.com/shorts/" + vid.id);
+                let res = await fetch(proxyUrl);
+                let data = await res.json();
+                
+                if (currentVideo !== vid) return; // Abort if user clicked another video in the meantime
+                
+                if (data && data.status && data.status.url) {
+                    vid.isLandscape = data.status.url.includes("watch");
+                } else {
+                    vid.isLandscape = false;
+                }
+            } catch(e) {
+                if (currentVideo !== vid) return;
+                vid.isLandscape = false; // Fallback to Portrait/Short behavior if detection fails
+            }
         }
 
+        setupLayout();
+        positionVideoWrap();
+        videoWrap.classList.add("open");
+
         if (ytPlayer) {
-            applyIframeSize();
+            positionVideoWrap();
             ytPlayer.loadVideoById({ videoId: vid.id, startSeconds: vid.start || 0 });
             if (vid.mute) ytPlayer.mute(); else ytPlayer.unMute();
             startLoopWatcher();
@@ -281,6 +302,11 @@
             ytDiv.id = "ytDiv";
             videoWrap.insertBefore(ytDiv, closeVideoBtn);
         }
+
+        let isL = vid.isLandscape;
+        let cw = Math.floor(isL ? cellW * 3 : cellW);
+        let ch = Math.floor(cellH * 3);
+        let fw = isL ? cw : Math.round(ch * 16 / 9);
 
         ytPlayer = new YT.Player("ytDiv", {
             width:   fw,
@@ -298,7 +324,7 @@
             },
             events: {
                 onReady: function(e) {
-                    applyIframeSize();
+                    positionVideoWrap();
                     if (vid.mute) e.target.mute();
                     e.target.playVideo();
                     startLoopWatcher();
