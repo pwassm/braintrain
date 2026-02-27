@@ -13,11 +13,9 @@
         #rotateWrap { position: fixed; top: 0; left: 0; }
         #gameCanvas { display: block; }
 
-        /* menuWrap: JS sets left/right/bottom directly — no CSS transform */
         #menuWrap {
             position: fixed;
             z-index: 999;
-            /* JS will override these at runtime */
             bottom: 14px;
             right: 14px;
         }
@@ -31,6 +29,7 @@
             align-items: center; justify-content: center;
             gap: 6px; padding: 10px;
             touch-action: manipulation;
+            transform: rotate(90deg);   /* bars run vertically = landscape orientation */
         }
         #menuBtn.open { background: rgba(30,30,30,0.97); }
         #menuBtn span {
@@ -38,7 +37,6 @@
             background: #fff; border-radius: 2px;
         }
 
-        /* Panel is absolute inside wrapper, always opens upward */
         #menuPanel {
             position: absolute;
             bottom: 54px;
@@ -350,7 +348,7 @@
     }
 
     // -------------------------------------------------------
-    // MENU — pure JS positioning, no CSS transforms
+    // MENU
     // -------------------------------------------------------
     function buildMenuItems() {
         document.querySelectorAll(".menu-set-item").forEach(el => el.remove());
@@ -365,24 +363,25 @@
     }
 
     function updateMenuPosition() {
-        let pw = window.innerWidth;
-        let ph = window.innerHeight;
-        const PAD = 14;
-
+        let PAD = 14;
         if (isPortrait) {
-            // Canvas is rotated 90deg: game's bottom-right corner
-            // maps to physical BOTTOM-LEFT of the screen.
-            // game bottom-right = physical (x=PAD, y=ph-PAD)
+            // Game's bottom-right = physical bottom-left
             menuWrap.style.bottom = PAD + "px";
             menuWrap.style.left   = PAD + "px";
             menuWrap.style.right  = "auto";
-            // Panel opens upward (away from bottom) in both cases —
-            // no change needed to #menuPanel positioning
+            // Panel opens rightward in physical space = game-upward
+            menuPanel.style.bottom = "0";
+            menuPanel.style.left   = "54px";
+            menuPanel.style.right  = "auto";
         } else {
             // Landscape / desktop: physical bottom-right
-            menuWrap.style.bottom = PAD + "px";
-            menuWrap.style.right  = PAD + "px";
-            menuWrap.style.left   = "auto";
+            menuWrap.style.bottom  = PAD + "px";
+            menuWrap.style.right   = PAD + "px";
+            menuWrap.style.left    = "auto";
+            // Panel opens upward
+            menuPanel.style.bottom = "54px";
+            menuPanel.style.right  = "0";
+            menuPanel.style.left   = "auto";
         }
     }
 
@@ -687,11 +686,11 @@
     // STARTUP
     // -------------------------------------------------------
     Promise.all([
-        fetch("assets.json?v="   + Date.now()).then(r => r.json()),
+        fetch("assets.json?v="  + Date.now()).then(r => r.json()),
         fetch("youtube.json?v=" + Date.now()).then(r => r.json()).catch(() => ({ videos: [] }))
     ]).then(([assetData, ytData]) => {
-        allSets   = assetData.sets  || [];
-        allVideos = ytData.videos   || [];
+        allSets   = assetData.sets || [];
+        allVideos = ytData.videos  || [];
         if (!allSets.length) throw new Error("No sets in assets.json");
         activeSetIndex = 0;
         buildMenuItems();
