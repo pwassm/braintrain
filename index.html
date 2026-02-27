@@ -492,7 +492,7 @@
     // -------------------------------------------------------
     // STARTUP — fetch assets.json, load set index 0 (Fish)
     // -------------------------------------------------------
-    fetch("assets.json")
+		fetch("assets.json?v=" + Date.now())
         .then(r=>r.json())
         .then(data=>{
             allSets=data.sets||[];
