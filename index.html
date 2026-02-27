@@ -13,34 +13,16 @@
         #rotateWrap { position: fixed; top: 0; left: 0; }
         #gameCanvas { display: block; }
 
-        /* -- Menu wrapper ---------------------------------------
-           Landscape/desktop: fixed bottom-right, no rotation.
-           Portrait phone: fixed bottom-left, rotated -90deg.
-             - transform-origin: bottom left means the bottom-left
-               corner stays fixed at (left:14, bottom:38).
-             - bottom:38 = 14px margin + 24px (half button width)
-               so after rotation the button face stays on screen.
-        -------------------------------------------------------- */
+        /* menuWrap: JS sets left/right/bottom directly — no CSS transform */
         #menuWrap {
             position: fixed;
             z-index: 999;
+            /* JS will override these at runtime */
             bottom: 14px;
             right: 14px;
-            left: auto;
-            transform: none;
-            transform-origin: bottom right;
-        }
-        #menuWrap.portrait-mode {
-            bottom: 38px;      /* pulls the pivot up so button stays visible */
-            left: 14px;
-            right: auto;
-            transform: rotate(-90deg);
-            transform-origin: bottom left;
         }
 
-        /* -- Hamburger button ----------------------------------- */
         #menuBtn {
-            position: relative;  /* so panel can be absolute relative to wrapper */
             width: 48px; height: 48px;
             background: rgba(30,30,30,0.82);
             border: none; border-radius: 10px;
@@ -56,13 +38,12 @@
             background: #fff; border-radius: 2px;
         }
 
-        /* -- Drop-up panel (landscape / desktop) --------------- */
+        /* Panel is absolute inside wrapper, always opens upward */
         #menuPanel {
             position: absolute;
-            bottom: 54px;    /* sits above the 48px button + 6px gap */
+            bottom: 54px;
             right: 0;
             left: auto;
-            top: auto;
             z-index: 998;
             background: rgba(25,25,25,0.96);
             border-radius: 10px;
@@ -71,16 +52,6 @@
             flex-direction: column;
             min-width: 200px;
             box-shadow: 0 4px 24px rgba(0,0,0,0.5);
-        }
-        /* Portrait phone: wrapper is rotated -90deg.
-           "Above the button" in game-landscape = to the right in
-           the wrapper's local (rotated) coordinate space.
-           So: left:54px (right of button), bottom:0 (aligned). */
-        #menuWrap.portrait-mode #menuPanel {
-            bottom: 0;
-            left: 54px;
-            right: auto;
-            top: auto;
         }
         #menuPanel.open { display: flex; }
 
@@ -93,7 +64,7 @@
         .menu-item:last-child { border-bottom: none; }
         .menu-item:hover, .menu-item:active { background: rgba(255,255,255,0.12); }
         .menu-item.active-set { color: #6f6; }
-        .menu-divider { height:1px; background:rgba(255,255,255,0.15); margin:2px 0; }
+        .menu-divider { height: 1px; background: rgba(255,255,255,0.15); margin: 2px 0; }
 
         .video-sub {
             padding: 10px 18px 10px 30px;
@@ -114,7 +85,7 @@
             background: transparent;
         }
         #videoWrap.open { display: block; }
-        #ytDiv { position: absolute; top:0; left:0; }
+        #ytDiv { position: absolute; top: 0; left: 0; }
 
         #closeVideoBtn {
             position: absolute;
@@ -368,18 +339,18 @@
         ctx.fillStyle = bgColor;
         ctx.fillRect(0, 0, GW, GH);
         ctx.strokeStyle = "#000"; ctx.lineWidth = 1;
-        for (let i=1; i<=GRID_LINES; i++) {
-            let x = GW*i/(GRID_LINES+1);
-            ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,GH); ctx.stroke();
+        for (let i = 1; i <= GRID_LINES; i++) {
+            let x = GW * i / (GRID_LINES + 1);
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, GH); ctx.stroke();
         }
-        for (let i=1; i<=GRID_LINES; i++) {
-            let y = GH*i/(GRID_LINES+1);
-            ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(GW,y); ctx.stroke();
+        for (let i = 1; i <= GRID_LINES; i++) {
+            let y = GH * i / (GRID_LINES + 1);
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(GW, y); ctx.stroke();
         }
     }
 
     // -------------------------------------------------------
-    // MENU
+    // MENU — pure JS positioning, no CSS transforms
     // -------------------------------------------------------
     function buildMenuItems() {
         document.querySelectorAll(".menu-set-item").forEach(el => el.remove());
@@ -394,10 +365,24 @@
     }
 
     function updateMenuPosition() {
+        let pw = window.innerWidth;
+        let ph = window.innerHeight;
+        const PAD = 14;
+
         if (isPortrait) {
-            menuWrap.classList.add("portrait-mode");
+            // Canvas is rotated 90deg: game's bottom-right corner
+            // maps to physical BOTTOM-LEFT of the screen.
+            // game bottom-right = physical (x=PAD, y=ph-PAD)
+            menuWrap.style.bottom = PAD + "px";
+            menuWrap.style.left   = PAD + "px";
+            menuWrap.style.right  = "auto";
+            // Panel opens upward (away from bottom) in both cases —
+            // no change needed to #menuPanel positioning
         } else {
-            menuWrap.classList.remove("portrait-mode");
+            // Landscape / desktop: physical bottom-right
+            menuWrap.style.bottom = PAD + "px";
+            menuWrap.style.right  = PAD + "px";
+            menuWrap.style.left   = "auto";
         }
     }
 
@@ -437,18 +422,18 @@
     function setupLayout() {
         let pw = window.innerWidth, ph = window.innerHeight;
         isPortrait = pw < ph;
-        bgColor = Math.min(pw,ph) < 600 ? "#7ab8e8" : "#ffffff";
+        bgColor = Math.min(pw, ph) < 600 ? "#7ab8e8" : "#ffffff";
 
         if (isPortrait) {
             GW = ph; GH = pw;
-            canvas.width = GW; canvas.height = GH;
-            wrap.style.width  = GW+"px"; wrap.style.height = GH+"px";
+            canvas.width  = GW; canvas.height = GH;
+            wrap.style.width  = GW + "px"; wrap.style.height = GH + "px";
             wrap.style.transformOrigin = "0 0";
-            wrap.style.transform = "rotate(90deg) translateY(-"+pw+"px)";
+            wrap.style.transform = "rotate(90deg) translateY(-" + pw + "px)";
         } else {
             GW = pw; GH = ph;
-            canvas.width = GW; canvas.height = GH;
-            wrap.style.width  = GW+"px"; wrap.style.height = GH+"px";
+            canvas.width  = GW; canvas.height = GH;
+            wrap.style.width  = GW + "px"; wrap.style.height = GH + "px";
             wrap.style.transformOrigin = "0 0";
             wrap.style.transform = "none";
         }
@@ -456,259 +441,268 @@
         cellW = GW / GRID_COLS;
         cellH = GH / GRID_ROWS;
 
-        let maxW = cellW - IMG_PAD*2, maxH = cellH - IMG_PAD*2;
-        if (maxW*9/16 <= maxH) {
-            imgW = Math.floor(maxW); imgH = Math.floor(maxW*9/16);
+        let maxW = cellW - IMG_PAD * 2, maxH = cellH - IMG_PAD * 2;
+        if (maxW * 9 / 16 <= maxH) {
+            imgW = Math.floor(maxW); imgH = Math.floor(maxW * 9 / 16);
         } else {
-            imgH = Math.floor(maxH); imgW = Math.floor(maxH*16/9);
+            imgH = Math.floor(maxH); imgW = Math.floor(maxH * 16 / 9);
         }
 
         updateMenuPosition();
         if (videoWrap.classList.contains("open")) positionVideoWrap();
     }
 
-    function toGame(px,py) {
-        if (isPortrait) return { x:py, y:window.innerWidth-px };
-        return { x:px, y:py };
+    function toGame(px, py) {
+        if (isPortrait) return { x: py, y: window.innerWidth - px };
+        return { x: px, y: py };
     }
     function getCenter(idx) {
-        let row=Math.floor((idx-1)/GRID_COLS)+1, col=((idx-1)%GRID_COLS)+1;
-        return { x:(col-0.5)*cellW, y:(row-0.5)*cellH };
+        let row = Math.floor((idx - 1) / GRID_COLS) + 1;
+        let col = ((idx - 1) % GRID_COLS) + 1;
+        return { x: (col - 0.5) * cellW, y: (row - 0.5) * cellH };
     }
-    function getRegion(gx,gy) {
-        let col=Math.floor(gx/cellW)+1, row=Math.floor(gy/cellH)+1;
-        if(col<1||col>GRID_COLS||row<1||row>GRID_ROWS) return 0;
-        return (row-1)*GRID_COLS+col;
+    function getRegion(gx, gy) {
+        let col = Math.floor(gx / cellW) + 1;
+        let row = Math.floor(gy / cellH) + 1;
+        if (col < 1 || col > GRID_COLS || row < 1 || row > GRID_ROWS) return 0;
+        return (row - 1) * GRID_COLS + col;
     }
 
-    let centerIdx = ((Math.ceil(GRID_ROWS/2)-1)*GRID_COLS)+Math.ceil(GRID_COLS/2);
-    let leftIdx   = centerIdx-1;
-    let rightIdx  = centerIdx+1;
+    let centerIdx = ((Math.ceil(GRID_ROWS / 2) - 1) * GRID_COLS) + Math.ceil(GRID_COLS / 2);
+    let leftIdx   = centerIdx - 1;
+    let rightIdx  = centerIdx + 1;
 
     function makeSlot(idx) {
-        let c=getCenter(idx);
-        return { x:Math.floor(c.x-imgW/2), y:Math.floor(c.y-imgH/2), w:imgW, h:imgH };
+        let c = getCenter(idx);
+        return { x: Math.floor(c.x - imgW / 2), y: Math.floor(c.y - imgH / 2), w: imgW, h: imgH };
     }
     function makeBigSlot(img) {
-        let boxX=cellW, boxY=cellH, boxW=cellW*3, boxH=cellH*3;
-        let iw=img.naturalWidth||img.width||boxW, ih=img.naturalHeight||img.height||boxH;
-        let scale=Math.min(boxW/iw, boxH/ih);
-        let dw=Math.floor(iw*scale), dh=Math.floor(ih*scale);
-        return { x:Math.floor(boxX+(boxW-dw)/2), y:Math.floor(boxY+(boxH-dh)/2), w:dw, h:dh };
+        let boxX = cellW, boxY = cellH, boxW = cellW * 3, boxH = cellH * 3;
+        let iw = img.naturalWidth || img.width || boxW;
+        let ih = img.naturalHeight || img.height || boxH;
+        let scale = Math.min(boxW / iw, boxH / ih);
+        let dw = Math.floor(iw * scale), dh = Math.floor(ih * scale);
+        return { x: Math.floor(boxX + (boxW - dw) / 2), y: Math.floor(boxY + (boxH - dh) / 2), w: dw, h: dh };
     }
     function getLabelZone() {
-        return { cx:cellW*2.5, cy:cellH*4.5, zoneW:cellW*3, zoneH:cellH };
+        return { cx: cellW * 2.5, cy: cellH * 4.5, zoneW: cellW * 3, zoneH: cellH };
     }
 
     // -------------------------------------------------------
     // DRAWING
     // -------------------------------------------------------
-    function drawImg(img,r) {
-        ctx.save(); ctx.beginPath(); ctx.rect(r.x,r.y,r.w,r.h); ctx.clip();
-        ctx.drawImage(img,r.x,r.y,r.w,r.h); ctx.restore();
-        ctx.strokeStyle="#333"; ctx.lineWidth=2; ctx.strokeRect(r.x,r.y,r.w,r.h);
+    function drawImg(img, r) {
+        ctx.save(); ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.clip();
+        ctx.drawImage(img, r.x, r.y, r.w, r.h); ctx.restore();
+        ctx.strokeStyle = "#333"; ctx.lineWidth = 2; ctx.strokeRect(r.x, r.y, r.w, r.h);
     }
-    function drawBigImg(img,r) {
-        ctx.drawImage(img,r.x,r.y,r.w,r.h);
-        ctx.strokeStyle="#333"; ctx.lineWidth=2; ctx.strokeRect(r.x,r.y,r.w,r.h);
+    function drawBigImg(img, r) {
+        ctx.drawImage(img, r.x, r.y, r.w, r.h);
+        ctx.strokeStyle = "#333"; ctx.lineWidth = 2; ctx.strokeRect(r.x, r.y, r.w, r.h);
     }
-    function drawHint(img,regionIdx) {
-        let c=getCenter(regionIdx);
-        let tw=Math.floor(imgW*0.20), th=Math.floor(imgH*0.20);
-        let tx=Math.floor(c.x-tw/2), ty=Math.floor(c.y-th/2);
-        ctx.drawImage(img,tx,ty,tw,th);
-        ctx.strokeStyle="rgba(0,0,0,0.6)"; ctx.lineWidth=1; ctx.strokeRect(tx,ty,tw,th);
+    function drawHint(img, regionIdx) {
+        let c = getCenter(regionIdx);
+        let tw = Math.floor(imgW * 0.20), th = Math.floor(imgH * 0.20);
+        let tx = Math.floor(c.x - tw / 2), ty = Math.floor(c.y - th / 2);
+        ctx.drawImage(img, tx, ty, tw, th);
+        ctx.strokeStyle = "rgba(0,0,0,0.6)"; ctx.lineWidth = 1; ctx.strokeRect(tx, ty, tw, th);
     }
-    function drawFittedLabel(text,cx,cy,maxW,maxH,bg,fg) {
-        let pad=10, fs=Math.floor(maxH*0.275);
-        ctx.font="bold "+fs+"px Arial";
-        while(fs>4&&ctx.measureText(text).width>maxW-pad*2){fs--;ctx.font="bold "+fs+"px Arial";}
-        let tw=ctx.measureText(text).width, bw=tw+pad*2, bh=fs+pad*2;
-        let bx=Math.max(2,Math.min(cx-bw/2,GW-bw-2)), by=Math.max(2,Math.min(cy-bh/2,GH-bh-2));
-        ctx.fillStyle=bg; ctx.beginPath();
-        if(ctx.roundRect) ctx.roundRect(bx,by,bw,bh,6); else ctx.rect(bx,by,bw,bh);
-        ctx.fill(); ctx.fillStyle=fg; ctx.fillText(text,bx+pad,by+pad+fs*0.85);
+    function drawFittedLabel(text, cx, cy, maxW, maxH, bg, fg) {
+        let pad = 10, fs = Math.floor(maxH * 0.275);
+        ctx.font = "bold " + fs + "px Arial";
+        while (fs > 4 && ctx.measureText(text).width > maxW - pad * 2) {
+            fs--; ctx.font = "bold " + fs + "px Arial";
+        }
+        let tw = ctx.measureText(text).width, bw = tw + pad * 2, bh = fs + pad * 2;
+        let bx = Math.max(2, Math.min(cx - bw / 2, GW - bw - 2));
+        let by = Math.max(2, Math.min(cy - bh / 2, GH - bh - 2));
+        ctx.fillStyle = bg; ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 6); else ctx.rect(bx, by, bw, bh);
+        ctx.fill(); ctx.fillStyle = fg;
+        ctx.fillText(text, bx + pad, by + pad + fs * 0.85);
     }
     function drawFeedback(text) {
-        let fs=Math.max(12,Math.floor(GH/10));
-        ctx.font="bold "+fs+"px Arial";
-        let lines=text.split("\\n"), maxW=0;
-        lines.forEach(l=>{let m=ctx.measureText(l).width;if(m>maxW)maxW=m;});
-        let pad=24, bw=maxW+pad*2, bh=(fs+10)*lines.length+pad*2;
-        let bx=GW/2-bw/2, by=GH/2-bh/2;
-        ctx.fillStyle="rgba(255,60,60,0.97)"; ctx.beginPath();
-        if(ctx.roundRect) ctx.roundRect(bx,by,bw,bh,10); else ctx.rect(bx,by,bw,bh);
-        ctx.fill(); ctx.fillStyle="#fff";
-        lines.forEach((l,i)=>ctx.fillText(l,GW/2-ctx.measureText(l).width/2,by+pad+fs*0.85+i*(fs+10)));
+        let fs = Math.max(12, Math.floor(GH / 10));
+        ctx.font = "bold " + fs + "px Arial";
+        let lines = text.split("\\n"), maxW = 0;
+        lines.forEach(l => { let m = ctx.measureText(l).width; if (m > maxW) maxW = m; });
+        let pad = 24, bw = maxW + pad * 2, bh = (fs + 10) * lines.length + pad * 2;
+        let bx = GW / 2 - bw / 2, by = GH / 2 - bh / 2;
+        ctx.fillStyle = "rgba(255,60,60,0.97)"; ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 10); else ctx.rect(bx, by, bw, bh);
+        ctx.fill(); ctx.fillStyle = "#fff";
+        lines.forEach((l, i) => ctx.fillText(l, GW / 2 - ctx.measureText(l).width / 2,
+            by + pad + fs * 0.85 + i * (fs + 10)));
     }
 
     function render() {
         if (videoOpen) { renderGridOnly(); return; }
-        ctx.fillStyle=bgColor; ctx.fillRect(0,0,GW,GH);
-        ctx.strokeStyle="#000"; ctx.lineWidth=1;
-        for(let i=1;i<=GRID_LINES;i++){
-            let x=GW*i/(GRID_LINES+1);
-            ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,GH);ctx.stroke();
+        ctx.fillStyle = bgColor; ctx.fillRect(0, 0, GW, GH);
+        ctx.strokeStyle = "#000"; ctx.lineWidth = 1;
+        for (let i = 1; i <= GRID_LINES; i++) {
+            let x = GW * i / (GRID_LINES + 1);
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, GH); ctx.stroke();
         }
-        for(let i=1;i<=GRID_LINES;i++){
-            let y=GH*i/(GRID_LINES+1);
-            ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(GW,y);ctx.stroke();
+        for (let i = 1; i <= GRID_LINES; i++) {
+            let y = GH * i / (GRID_LINES + 1);
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(GW, y); ctx.stroke();
         }
-        ["single","left","right"].forEach(k=>{
-            if(slotVis[k]&&slotImg[k]&&slots[k]) drawImg(slotImg[k],slots[k]);
+        ["single", "left", "right"].forEach(k => {
+            if (slotVis[k] && slotImg[k] && slots[k]) drawImg(slotImg[k], slots[k]);
         });
-        if(bigVis&&bigImg&&bigSlot) drawBigImg(bigImg,bigSlot);
-        if(hintVisible&&hintImg) drawHint(hintImg,hintRegion);
-        if(nameBelowVisible){
-            let z=getLabelZone();
-            drawFittedLabel(nameBelowText,z.cx,z.cy,z.zoneW,z.zoneH,"rgba(60,180,60,0.97)","#fff");
+        if (bigVis && bigImg && bigSlot) drawBigImg(bigImg, bigSlot);
+        if (hintVisible && hintImg) drawHint(hintImg, hintRegion);
+        if (nameBelowVisible) {
+            let z = getLabelZone();
+            drawFittedLabel(nameBelowText, z.cx, z.cy, z.zoneW, z.zoneH, "rgba(60,180,60,0.97)", "#fff");
         }
-        if(feedbackVisible) drawFeedback(feedbackText);
+        if (feedbackVisible) drawFeedback(feedbackText);
     }
 
     // -------------------------------------------------------
     // AUDIO
     // -------------------------------------------------------
     function playAudio(idx) {
-        return new Promise(resolve=>{
-            if(currentAudio){currentAudio.pause();currentAudio.currentTime=0;}
-            let src=AUDIO_FILES[idx];
-            if(!src){resolve();return;}
-            currentAudio=new Audio(src);
-            currentAudio.onended=resolve; currentAudio.onerror=resolve;
+        return new Promise(resolve => {
+            if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; }
+            let src = AUDIO_FILES[idx];
+            if (!src) { resolve(); return; }
+            currentAudio = new Audio(src);
+            currentAudio.onended = resolve;
+            currentAudio.onerror = resolve;
             currentAudio.play().catch(resolve);
         });
     }
-    function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
-    function rnd(n){return Math.floor(Math.random()*n);}
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+    function rnd(n) { return Math.floor(Math.random() * n); }
 
     // -------------------------------------------------------
     // ASSET LOADING
     // -------------------------------------------------------
     function preloadImages(cb) {
-        if(!IMAGE_URLS.length){cb();return;}
-        loadedImages=new Array(IMAGE_URLS.length); let n=0;
-        IMAGE_URLS.forEach((url,i)=>{
-            let img=new Image();
-            img.onload=img.onerror=()=>{if(++n===IMAGE_URLS.length)cb();};
-            img.src=url; loadedImages[i]=img;
+        if (!IMAGE_URLS.length) { cb(); return; }
+        loadedImages = new Array(IMAGE_URLS.length); let n = 0;
+        IMAGE_URLS.forEach((url, i) => {
+            let img = new Image();
+            img.onload = img.onerror = () => { if (++n === IMAGE_URLS.length) cb(); };
+            img.src = url; loadedImages[i] = img;
         });
     }
-    function loadSet(set,cb) {
-        IMAGE_URLS  = set.items.map(it=>`${set.folder}/${it.base}.jpg`);
-        IMAGE_NAMES = set.items.map(it=>it.label);
-        AUDIO_FILES = set.items.map(it=>`${set.folder}/${it.base}.mp3`);
-        loadedImages=[];
+    function loadSet(set, cb) {
+        IMAGE_URLS  = set.items.map(it => `${set.folder}/${it.base}.jpg`);
+        IMAGE_NAMES = set.items.map(it => it.label);
+        AUDIO_FILES = set.items.map(it => `${set.folder}/${it.base}.mp3`);
+        loadedImages = [];
         preloadImages(cb);
     }
     function switchSet(i) {
         closeMenu();
-        if(i===activeSetIndex) return;
-        activeSetIndex=i; gameActive=false;
-        if(videoOpen) closeVideo();
+        if (i === activeSetIndex) return;
+        activeSetIndex = i; gameActive = false;
+        if (videoOpen) closeVideo();
         buildMenuItems();
-        loadSet(allSets[i],()=>{setupLayout();render();phaseOne();});
+        loadSet(allSets[i], () => { setupLayout(); render(); phaseOne(); });
     }
 
     // -------------------------------------------------------
     // GAME
     // -------------------------------------------------------
     async function phaseOne() {
-        gameActive=false; clickPhase=0;
+        gameActive = false; clickPhase = 0;
         setupLayout();
-        bigVis=false;bigImg=null;bigSlot=null;
-        nameBelowVisible=false;hintVisible=false;feedbackVisible=false;
+        bigVis = false; bigImg = null; bigSlot = null;
+        nameBelowVisible = false; hintVisible = false; feedbackVisible = false;
 
-        let i1=rnd(IMAGE_URLS.length), i2=rnd(IMAGE_URLS.length);
-        while(i2===i1) i2=rnd(IMAGE_URLS.length);
+        let i1 = rnd(IMAGE_URLS.length), i2 = rnd(IMAGE_URLS.length);
+        while (i2 === i1) i2 = rnd(IMAGE_URLS.length);
 
-        correctImgIndex=i1; correctImgName=IMAGE_NAMES[i1];
-        correctRegion=Math.floor(Math.random()*GRID_ROWS*GRID_COLS)+1;
+        correctImgIndex = i1; correctImgName = IMAGE_NAMES[i1];
+        correctRegion = Math.floor(Math.random() * GRID_ROWS * GRID_COLS) + 1;
 
-        slots.single=makeSlot(centerIdx); slotImg.single=loadedImages[i1];
-        slotVis.single=true; slotVis.left=false; slotVis.right=false;
-        hintImg=loadedImages[i1]; hintRegion=correctRegion; hintVisible=true;
+        slots.single = makeSlot(centerIdx); slotImg.single = loadedImages[i1];
+        slotVis.single = true; slotVis.left = false; slotVis.right = false;
+        hintImg = loadedImages[i1]; hintRegion = correctRegion; hintVisible = true;
         render(); await sleep(SHOW_SINGLE_MS);
 
-        slotVis.single=false; hintVisible=false; render();
+        slotVis.single = false; hintVisible = false; render();
         await sleep(GAP_BEFORE_PAIR);
 
-        if(Math.random()<0.5){
-            slotImg.left=loadedImages[i2];slotImg.right=loadedImages[i1];correctSide="right";
+        if (Math.random() < 0.5) {
+            slotImg.left = loadedImages[i2]; slotImg.right = loadedImages[i1]; correctSide = "right";
         } else {
-            slotImg.left=loadedImages[i1];slotImg.right=loadedImages[i2];correctSide="left";
+            slotImg.left = loadedImages[i1]; slotImg.right = loadedImages[i2]; correctSide = "left";
         }
-        slots.left=makeSlot(leftIdx); slots.right=makeSlot(rightIdx);
-        slotVis.left=slotVis.right=true;
-        render(); clickPhase=1; gameActive=true;
+        slots.left = makeSlot(leftIdx); slots.right = makeSlot(rightIdx);
+        slotVis.left = slotVis.right = true;
+        render(); clickPhase = 1; gameActive = true;
     }
 
     async function handleCorrectLocation() {
-        slotVis.left=false; slotVis.right=false;
-        let img=loadedImages[correctImgIndex];
-        bigSlot=makeBigSlot(img); bigImg=img; bigVis=true;
-        nameBelowText=correctImgName; nameBelowVisible=true;
+        slotVis.left = false; slotVis.right = false;
+        let img = loadedImages[correctImgIndex];
+        bigSlot = makeBigSlot(img); bigImg = img; bigVis = true;
+        nameBelowText = correctImgName; nameBelowVisible = true;
         render();
         await playAudio(correctImgIndex);
         await sleep(CORRECT_FLASH_MS);
-        bigVis=false; nameBelowVisible=false;
+        bigVis = false; nameBelowVisible = false;
         render(); await sleep(300); phaseOne();
     }
 
-    function hitTest(gx,gy,r){return r&&gx>=r.x&&gx<=r.x+r.w&&gy>=r.y&&gy<=r.y+r.h;}
+    function hitTest(gx, gy, r) { return r && gx >= r.x && gx <= r.x + r.w && gy >= r.y && gy <= r.y + r.h; }
 
-    function handleTap(px,py) {
-        if(!gameActive||videoOpen) return;
-        let g=toGame(px,py), gx=g.x, gy=g.y;
-        if(clickPhase===1){
-            let hl=hitTest(gx,gy,slots.left), hr=hitTest(gx,gy,slots.right);
-            if(!hl&&!hr) return;
-            gameActive=false;
-            let side=hl?"left":"right";
-            if(side!==correctSide){
-                slotVis.left=slotVis.right=false;
-                feedbackText="WRONG\\nIMAGE"; feedbackVisible=true; render();
-                sleep(WRONG_IMG_MS).then(()=>{feedbackVisible=false;render();sleep(300).then(phaseOne);});
+    function handleTap(px, py) {
+        if (!gameActive || videoOpen) return;
+        let g = toGame(px, py), gx = g.x, gy = g.y;
+        if (clickPhase === 1) {
+            let hl = hitTest(gx, gy, slots.left), hr = hitTest(gx, gy, slots.right);
+            if (!hl && !hr) return;
+            gameActive = false;
+            let side = hl ? "left" : "right";
+            if (side !== correctSide) {
+                slotVis.left = slotVis.right = false;
+                feedbackText = "WRONG\\nIMAGE"; feedbackVisible = true; render();
+                sleep(WRONG_IMG_MS).then(() => { feedbackVisible = false; render(); sleep(300).then(phaseOne); });
             } else {
-                if(side==="left") slotVis.right=false; else slotVis.left=false;
-                render(); clickPhase=2; gameActive=true;
+                if (side === "left") slotVis.right = false; else slotVis.left = false;
+                render(); clickPhase = 2; gameActive = true;
             }
-        } else if(clickPhase===2){
-            gameActive=false;
-            let region=getRegion(gx,gy);
-            if(region===correctRegion){
+        } else if (clickPhase === 2) {
+            gameActive = false;
+            let region = getRegion(gx, gy);
+            if (region === correctRegion) {
                 handleCorrectLocation();
             } else {
-                slotVis.left=slotVis.right=false;
-                feedbackText="WRONG"; feedbackVisible=true; render();
-                sleep(INCORRECT_MS).then(()=>{feedbackVisible=false;render();sleep(300).then(phaseOne);});
+                slotVis.left = slotVis.right = false;
+                feedbackText = "WRONG"; feedbackVisible = true; render();
+                sleep(INCORRECT_MS).then(() => { feedbackVisible = false; render(); sleep(300).then(phaseOne); });
             }
         }
     }
 
-    window.addEventListener("resize",()=>{setupLayout();render();});
-    window.addEventListener("orientationchange",()=>{setTimeout(()=>{setupLayout();render();},350);});
+    window.addEventListener("resize", () => { setupLayout(); render(); });
+    window.addEventListener("orientationchange", () => { setTimeout(() => { setupLayout(); render(); }, 350); });
 
     // -------------------------------------------------------
     // STARTUP
     // -------------------------------------------------------
     Promise.all([
-        fetch("assets.json?v="  + Date.now()).then(r=>r.json()),
-        fetch("youtube.json?v=" + Date.now()).then(r=>r.json()).catch(()=>({videos:[]}))
-    ]).then(([assetData, ytData])=>{
-        allSets   = assetData.sets || [];
-        allVideos = ytData.videos  || [];
-        if(!allSets.length) throw new Error("No sets in assets.json");
-        activeSetIndex=0;
+        fetch("assets.json?v="   + Date.now()).then(r => r.json()),
+        fetch("youtube.json?v=" + Date.now()).then(r => r.json()).catch(() => ({ videos: [] }))
+    ]).then(([assetData, ytData]) => {
+        allSets   = assetData.sets  || [];
+        allVideos = ytData.videos   || [];
+        if (!allSets.length) throw new Error("No sets in assets.json");
+        activeSetIndex = 0;
         buildMenuItems();
         buildVideoMenu();
-        loadSet(allSets[0],()=>{setupLayout();render();phaseOne();});
-    }).catch(err=>{
-        console.error("Startup error:",err);
+        loadSet(allSets[0], () => { setupLayout(); render(); phaseOne(); });
+    }).catch(err => {
+        console.error("Startup error:", err);
         setupLayout();
-        ctx.fillStyle="#fff"; ctx.fillRect(0,0,GW||400,GH||300);
-        ctx.fillStyle="#c00"; ctx.font="bold 18px Arial";
-        ctx.fillText("Error: "+err.message,20,(GH||300)/2);
+        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, GW || 400, GH || 300);
+        ctx.fillStyle = "#c00"; ctx.font = "bold 18px Arial";
+        ctx.fillText("Error: " + err.message, 20, (GH || 300) / 2);
     });
 </script>
 </body>
