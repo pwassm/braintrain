@@ -5,31 +5,23 @@
       "label": "Serving Underspin",
       "start": 2,
       "end": 12,
-      "mute": false
+      "mute": 0
     },
     {
       "id": "K738pe3dMK0",
       "label": "Single Arm Drill for freestyle",
       "start": 4,
       "end": 38,
-      "mute": false
+      "mute": 0
     },
     {
       "id": "-ZiSU3duFVM",
       "label": "Get More Spin",
       "start": 2,
       "end": 12,
-      "mute": true
-    },
-    {
-      "id": "K738pe3dMK0",
-      "label": "Single Arm Drill for freestyle",
-      "start": 4,
-      "end": 38,
-      "mute": false
+      "mute": 1
     }
-
-
+    
     
   ]
 }
