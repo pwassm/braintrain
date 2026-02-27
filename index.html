@@ -36,10 +36,11 @@
             background: rgba(25,25,25,0.96);
             border-radius: 10px; overflow: hidden;
             display: none; flex-direction: column;
-            min-width: 200px;
+            min-width: 210px;
             box-shadow: 0 4px 24px rgba(0,0,0,0.5);
         }
         #menuPanel.open { display: flex; }
+
         .menu-item {
             padding: 13px 18px; color: #fff;
             font: 15px Arial, sans-serif;
@@ -49,48 +50,32 @@
         .menu-item:last-child { border-bottom: none; }
         .menu-item:hover, .menu-item:active { background: rgba(255,255,255,0.12); }
         .menu-item.active-set { color: #6f6; }
-        .menu-item.video-item { color: #7df; }   /* teal tint for video entries */
-        .menu-divider { height:1px; background:rgba(255,255,255,0.15); margin:2px 0; }
+        .menu-divider { height:1px; background:rgba(255,255,255,0.18); margin:2px 0; }
 
-        /* -- video sub-menu (second panel, same drop-up style) -- */
-        #videoMenu {
-            position: fixed;
-            bottom: 70px; right: 14px;
-            z-index: 997;
-            background: rgba(20,20,40,0.97);
-            border-radius: 10px; overflow: hidden;
-            display: none; flex-direction: column;
-            min-width: 220px;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.6);
-        }
-        #videoMenu.open { display: flex; }
-        .video-menu-header {
-            padding: 10px 18px;
-            color: #aaa;
-            font: bold 12px Arial, sans-serif;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-            border-bottom: 1px solid rgba(255,255,255,0.12);
-        }
+        /* Video sub-items — indented, teal tint */
         .video-choice {
-            padding: 13px 18px; color: #7df;
-            font: 15px Arial, sans-serif;
+            padding: 10px 18px 10px 32px;
+            color: #7df;
+            font: 14px Arial, sans-serif;
             cursor: pointer; white-space: nowrap;
-            border-bottom: 1px solid rgba(255,255,255,0.07);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            display: none;   /* shown when Play is expanded */
         }
-        .video-choice:last-child { border-bottom: none; }
-        .video-choice:hover, .video-choice:active { background: rgba(255,255,255,0.1); }
+        .video-choice:hover, .video-choice:active { background: rgba(100,200,255,0.12); }
+        #menuPanel.videos-open .video-choice { display: block; }
+        #miPlay.expanded { color: #7df; }
 
-        /* -- video wrap -- */
+        /* videoWrap — NO background, so canvas grid shows through */
         #videoWrap {
             display: none;
             position: absolute;
             z-index: 10;
             overflow: hidden;
-            background: #000;
+            background: transparent;
         }
         #videoWrap.open { display: block; }
-        #ytDiv { position: absolute; top:0; left:0; width:100%; height:100%; }
+        #ytDiv { position: absolute; top:0; left:0; }
+
         #closeVideoBtn {
             position: absolute;
             top: 4px; right: 4px; z-index: 20;
@@ -109,7 +94,7 @@
     <canvas id="gameCanvas"></canvas>
     <div id="videoWrap">
         <div id="ytDiv"></div>
-        <button id="closeVideoBtn" aria-label="Close">?</button>
+        <button id="closeVideoBtn" aria-label="Close">X</button>
     </div>
 </div>
 
@@ -117,23 +102,17 @@
     <span></span><span></span><span></span>
 </button>
 
-<!-- Main hamburger panel -->
 <div id="menuPanel">
-    <div class="menu-item" id="miPlay">?&nbsp;&nbsp;Play</div>
-    <div class="menu-item" id="miConfig">?&nbsp;&nbsp;Config</div>
-    <div class="menu-item" id="miHelp">?&nbsp;&nbsp;Help</div>
-    <div class="menu-divider" id="miDivider"></div>
+    <div class="menu-item" id="miPlay">Play</div>
+    <!-- video choices injected here by buildVideoMenu(), hidden until expanded -->
+    <div class="menu-divider"></div>
+    <div class="menu-item" id="miConfig">Config</div>
+    <div class="menu-item" id="miHelp">Help</div>
+    <div class="menu-divider" id="miSetDivider"></div>
     <!-- set items appended here -->
 </div>
 
-<!-- Video sub-menu panel -->
-<div id="videoMenu">
-    <div class="video-menu-header">? &nbsp;Choose Video</div>
-    <!-- video choices appended here by buildVideoMenu() -->
-</div>
-
 <script src="https://www.youtube.com/iframe_api"></script>
-
 <script>
     // ============================================================
     // Asset arrays
@@ -143,9 +122,7 @@
     let AUDIO_FILES = [];
     let allSets        = [];
     let activeSetIndex = 0;
-
-    // youtube.json entries
-    let allVideos = [];   // [{ id, label, start, end }, ...]
+    let allVideos      = [];   // from youtube.json
 
     const GRID_LINES       = 4;
     const GRID_COLS        = GRID_LINES + 1;
@@ -162,7 +139,6 @@
     let wrap      = document.getElementById("rotateWrap");
     let menuBtn   = document.getElementById("menuBtn");
     let menuPanel = document.getElementById("menuPanel");
-    let videoMenu = document.getElementById("videoMenu");
 
     let GW, GH, cellW, cellH, imgW, imgH;
     let isPortrait, bgColor;
@@ -191,72 +167,60 @@
     let ytAPIReady   = false;
     let loopInterval = null;
     let seekDebounce = false;
-    let currentVideo = null;   // the currently playing { id, label, start, end }
+    let currentVideo = null;
+    let videoOpen    = false;
 
-    window.onYouTubeIframeAPIReady = function() {
-        ytAPIReady = true;
-    };
+    window.onYouTubeIframeAPIReady = function() { ytAPIReady = true; };
 
-    // Build the video sub-menu from allVideos
+    // Build video sub-items inside menuPanel, hidden by default
     function buildVideoMenu() {
-        // Remove old choices
         document.querySelectorAll(".video-choice").forEach(el => el.remove());
-
-        if (!allVideos.length) {
-            let el = document.createElement("div");
-            el.className = "video-choice";
-            el.style.color = "#888";
-            el.textContent = "(no videos in youtube.json)";
-            videoMenu.appendChild(el);
-            return;
-        }
-
+        let insertBefore = document.querySelector(".menu-divider");
         allVideos.forEach((vid, i) => {
             let el = document.createElement("div");
             el.className = "video-choice";
-            el.textContent = vid.label || ("Video " + (i+1));
+            el.textContent = "  > " + (vid.label || ("Video " + (i+1)));
             el.addEventListener("pointerup", e => {
                 e.stopPropagation();
-                closeVideoMenu();
+                collapseVideoList();
                 closeMenu();
                 openVideo(vid);
             });
-            videoMenu.appendChild(el);
+            menuPanel.insertBefore(el, insertBefore);
         });
     }
 
-    function openVideoMenu() {
-        // Close main menu, open video sub-menu
-        menuPanel.classList.remove("open");
-        menuBtn.classList.remove("open");
-        videoMenu.classList.add("open");
+    let videosExpanded = false;
+    function toggleVideoList() {
+        videosExpanded = !videosExpanded;
+        if (videosExpanded) {
+            menuPanel.classList.add("videos-open");
+            document.getElementById("miPlay").classList.add("expanded");
+        } else {
+            collapseVideoList();
+        }
     }
-
-    function closeVideoMenu() {
-        videoMenu.classList.remove("open");
+    function collapseVideoList() {
+        videosExpanded = false;
+        menuPanel.classList.remove("videos-open");
+        let miPlay = document.getElementById("miPlay");
+        if (miPlay) miPlay.classList.remove("expanded");
     }
-
-    // Stop clicks on videoMenu from bubbling to document (which would call handleTap)
-    videoMenu.addEventListener("pointerup", e => e.stopPropagation());
 
     function positionVideoWrap() {
         let cx = Math.floor(cellW * 2);
         let cy = Math.floor(cellH * 1);
         let cw = Math.floor(cellW);
         let ch = Math.floor(cellH * 3);
-
         videoWrap.style.left   = cx + "px";
         videoWrap.style.top    = cy + "px";
         videoWrap.style.width  = cw + "px";
         videoWrap.style.height = ch + "px";
 
-        // iframe is 16:9; Shorts are 9:16 pillarboxed inside.
-        // Set iframe_h = ch so content fills height.
-        // iframe_w = ch*(16/9), centred; overflow:hidden crops black side bars.
         if (ytPlayer && ytPlayer.getIframe) {
-            let iframe = ytPlayer.getIframe();
             let fw = Math.round(ch * 16 / 9);
             let fx = Math.round((cw - fw) / 2);
+            let iframe = ytPlayer.getIframe();
             iframe.style.position = "absolute";
             iframe.style.width    = fw + "px";
             iframe.style.height   = ch + "px";
@@ -267,20 +231,24 @@
 
     function openVideo(vid) {
         currentVideo = vid;
-        setupLayout();   // ensure cellW/cellH are current
+        videoOpen    = true;
+        setupLayout();
 
-        let cx = Math.floor(cellW * 2);
-        let cy = Math.floor(cellH * 1);
         let cw = Math.floor(cellW);
         let ch = Math.floor(cellH * 3);
         let fw = Math.round(ch * 16 / 9);
         let fx = Math.round((cw - fw) / 2);
+        let cx = Math.floor(cellW * 2);
+        let cy = Math.floor(cellH * 1);
 
         videoWrap.style.left   = cx + "px";
         videoWrap.style.top    = cy + "px";
         videoWrap.style.width  = cw + "px";
         videoWrap.style.height = ch + "px";
         videoWrap.classList.add("open");
+
+        // Render grid only (no game images) so background shows through video
+        renderGridOnly();
 
         function applyIframeSize() {
             let iframe = ytPlayer.getIframe();
@@ -292,19 +260,15 @@
         }
 
         if (ytPlayer) {
-            // Player already exists — load new video
             applyIframeSize();
-            ytPlayer.loadVideoById({
-                videoId:   vid.id,
-                startSeconds: vid.start
-            });
+            ytPlayer.loadVideoById({ videoId: vid.id, startSeconds: vid.start });
             startLoopWatcher();
             return;
         }
 
         if (!ytAPIReady) { setTimeout(() => openVideo(vid), 300); return; }
 
-        // Reset placeholder div
+        // Recreate placeholder div if needed
         let ytDiv = document.getElementById("ytDiv");
         if (!ytDiv) {
             ytDiv = document.createElement("div");
@@ -332,9 +296,7 @@
                     startLoopWatcher();
                 },
                 onStateChange: function(e) {
-                    if (e.data === YT.PlayerState.ENDED) {
-                        doSeekLoop();
-                    }
+                    if (e.data === YT.PlayerState.ENDED) doSeekLoop();
                 }
             }
         });
@@ -351,69 +313,88 @@
     function startLoopWatcher() {
         if (loopInterval) clearInterval(loopInterval);
         loopInterval = setInterval(() => {
-            if (!videoWrap.classList.contains("open")) return;
+            if (!videoOpen) return;
             if (!ytPlayer || typeof ytPlayer.getCurrentTime !== "function") return;
             try {
                 let t = ytPlayer.getCurrentTime();
-                if (!seekDebounce && currentVideo && t >= currentVideo.end) {
-                    doSeekLoop();
-                }
+                if (!seekDebounce && currentVideo && t >= currentVideo.end) doSeekLoop();
             } catch(e) {}
         }, 250);
     }
 
     function closeVideo() {
+        videoOpen = false;
         videoWrap.classList.remove("open");
         if (loopInterval) { clearInterval(loopInterval); loopInterval = null; }
         if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
         currentVideo = null;
+        // Resume normal render
+        render();
+        // Resume game if it was running
+        if (clickPhase > 0) gameActive = true;
     }
 
     closeVideoBtn.addEventListener("pointerup", e => { e.stopPropagation(); closeVideo(); });
 
     // -------------------------------------------------------
-    // MENU
+    // RENDER GRID ONLY (for video background)
     // -------------------------------------------------------
-    function addMenuAction(id, fn) {
-        document.getElementById(id).addEventListener("pointerup", e => {
-            e.stopPropagation(); fn();
-        });
+    function renderGridOnly() {
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0,0,GW,GH);
+        ctx.strokeStyle="#000"; ctx.lineWidth=1;
+        for (let i=1;i<=GRID_LINES;i++) {
+            let x=GW*i/(GRID_LINES+1);
+            ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,GH);ctx.stroke();
+        }
+        for (let i=1;i<=GRID_LINES;i++) {
+            let y=GH*i/(GRID_LINES+1);
+            ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(GW,y);ctx.stroke();
+        }
     }
 
+    // -------------------------------------------------------
+    // MENU
+    // -------------------------------------------------------
     function buildMenuItems() {
         document.querySelectorAll(".menu-set-item").forEach(el => el.remove());
         allSets.forEach((set, i) => {
             let el = document.createElement("div");
             el.className = "menu-item menu-set-item" +
                            (i === activeSetIndex ? " active-set" : "");
-            el.textContent = (i === activeSetIndex ? "?  " : "     ") + set.name;
+            el.textContent = (i === activeSetIndex ? "  " : "     ") + set.name;
             el.addEventListener("pointerup", e => { e.stopPropagation(); switchSet(i); });
             menuPanel.appendChild(el);
         });
     }
 
     function closeMenu() {
+        collapseVideoList();
         menuPanel.classList.remove("open");
         menuBtn.classList.remove("open");
     }
 
     menuBtn.addEventListener("pointerup", e => {
         e.stopPropagation();
-        closeVideoMenu();
         let isOpen = menuPanel.classList.toggle("open");
         menuBtn.classList.toggle("open", isOpen);
+        if (!isOpen) collapseVideoList();
     });
     menuPanel.addEventListener("pointerup", e => e.stopPropagation());
 
-    // Play ? show video sub-menu
-    addMenuAction("miPlay", () => openVideoMenu());
-    addMenuAction("miConfig", () => { closeMenu(); alert("Config — coming soon"); });
-    addMenuAction("miHelp",   () => { closeMenu(); alert("Help — coming soon"); });
+    document.getElementById("miPlay").addEventListener("pointerup", e => {
+        e.stopPropagation();
+        toggleVideoList();
+    });
+    document.getElementById("miConfig").addEventListener("pointerup", e => {
+        e.stopPropagation(); closeMenu(); alert("Config — coming soon");
+    });
+    document.getElementById("miHelp").addEventListener("pointerup", e => {
+        e.stopPropagation(); closeMenu(); alert("Help — coming soon");
+    });
 
     function handleDocPointerUp(e) {
-        // Close either menu if open
-        if (videoMenu.classList.contains("open"))  { closeVideoMenu(); return; }
-        if (menuPanel.classList.contains("open"))  { closeMenu();      return; }
+        if (menuPanel.classList.contains("open")) { closeMenu(); return; }
         handleTap(e.clientX, e.clientY);
     }
     document.addEventListener("pointerup", handleDocPointerUp);
@@ -450,11 +431,9 @@
         let maxW = cellW - IMG_PAD * 2;
         let maxH = cellH - IMG_PAD * 2;
         if (maxW * 9 / 16 <= maxH) {
-            imgW = Math.floor(maxW);
-            imgH = Math.floor(maxW * 9 / 16);
+            imgW = Math.floor(maxW); imgH = Math.floor(maxW * 9 / 16);
         } else {
-            imgH = Math.floor(maxH);
-            imgW = Math.floor(maxH * 16 / 9);
+            imgH = Math.floor(maxH); imgW = Math.floor(maxH * 16 / 9);
         }
 
         if (videoWrap.classList.contains("open")) positionVideoWrap();
@@ -525,42 +504,44 @@
         let tx = Math.floor(c.x - tw / 2);
         let ty = Math.floor(c.y - th / 2);
         ctx.drawImage(img, tx, ty, tw, th);
-        ctx.strokeStyle = "rgba(0,0,0,0.6)"; ctx.lineWidth = 1;
+        ctx.strokeStyle="rgba(0,0,0,0.6)"; ctx.lineWidth=1;
         ctx.strokeRect(tx, ty, tw, th);
     }
 
     function drawFittedLabel(text, cx, cy, maxW, maxH, bg, fg) {
-        let pad = 10, fs = Math.floor(maxH * 0.275);
-        ctx.font = "bold " + fs + "px Arial";
-        while (fs > 4 && ctx.measureText(text).width > maxW - pad*2) {
-            fs--; ctx.font = "bold " + fs + "px Arial";
+        let pad=10, fs=Math.floor(maxH*0.275);
+        ctx.font="bold "+fs+"px Arial";
+        while (fs>4 && ctx.measureText(text).width>maxW-pad*2) {
+            fs--; ctx.font="bold "+fs+"px Arial";
         }
-        let tw = ctx.measureText(text).width;
-        let bw = tw+pad*2, bh = fs+pad*2;
-        let bx = Math.max(2, Math.min(cx-bw/2, GW-bw-2));
-        let by = Math.max(2, Math.min(cy-bh/2, GH-bh-2));
-        ctx.fillStyle = bg; ctx.beginPath();
+        let tw=ctx.measureText(text).width;
+        let bw=tw+pad*2, bh=fs+pad*2;
+        let bx=Math.max(2,Math.min(cx-bw/2,GW-bw-2));
+        let by=Math.max(2,Math.min(cy-bh/2,GH-bh-2));
+        ctx.fillStyle=bg; ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(bx,by,bw,bh,6); else ctx.rect(bx,by,bw,bh);
-        ctx.fill(); ctx.fillStyle = fg;
-        ctx.fillText(text, bx+pad, by+pad+fs*0.85);
+        ctx.fill(); ctx.fillStyle=fg;
+        ctx.fillText(text,bx+pad,by+pad+fs*0.85);
     }
 
     function drawFeedback(text) {
-        let fs = Math.max(12, Math.floor(GH/10));
-        ctx.font = "bold " + fs + "px Arial";
-        let lines = text.split("\\n"), maxW = 0;
-        lines.forEach(l => { let m=ctx.measureText(l).width; if(m>maxW) maxW=m; });
+        let fs=Math.max(12,Math.floor(GH/10));
+        ctx.font="bold "+fs+"px Arial";
+        let lines=text.split("\\n"), maxW=0;
+        lines.forEach(l=>{let m=ctx.measureText(l).width;if(m>maxW)maxW=m;});
         let pad=24, bw=maxW+pad*2, bh=(fs+10)*lines.length+pad*2;
         let bx=GW/2-bw/2, by=GH/2-bh/2;
         ctx.fillStyle="rgba(255,60,60,0.97)"; ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(bx,by,bw,bh,10); else ctx.rect(bx,by,bw,bh);
         ctx.fill(); ctx.fillStyle="#fff";
-        lines.forEach((l,i) => ctx.fillText(l, GW/2-ctx.measureText(l).width/2,
+        lines.forEach((l,i)=>ctx.fillText(l,GW/2-ctx.measureText(l).width/2,
             by+pad+fs*0.85+i*(fs+10)));
     }
 
     function render() {
-        ctx.fillStyle = bgColor; ctx.fillRect(0,0,GW,GH);
+        // While video is open just keep the grid visible, no game images
+        if (videoOpen) { renderGridOnly(); return; }
+        ctx.fillStyle=bgColor; ctx.fillRect(0,0,GW,GH);
         ctx.strokeStyle="#000"; ctx.lineWidth=1;
         for (let i=1;i<=GRID_LINES;i++) {
             let x=GW*i/(GRID_LINES+1);
@@ -570,15 +551,14 @@
             let y=GH*i/(GRID_LINES+1);
             ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(GW,y);ctx.stroke();
         }
-        ["single","left","right"].forEach(k => {
-            if (slotVis[k]&&slotImg[k]&&slots[k]) drawImg(slotImg[k],slots[k]);
+        ["single","left","right"].forEach(k=>{
+            if(slotVis[k]&&slotImg[k]&&slots[k]) drawImg(slotImg[k],slots[k]);
         });
         if (bigVis&&bigImg&&bigSlot) drawBigImg(bigImg,bigSlot);
-        if (hintVisible && hintImg)  drawHint(hintImg, hintRegion);
+        if (hintVisible&&hintImg) drawHint(hintImg,hintRegion);
         if (nameBelowVisible) {
-            let z = getLabelZone();
-            drawFittedLabel(nameBelowText,z.cx,z.cy,z.zoneW,z.zoneH,
-                "rgba(60,180,60,0.97)","#fff");
+            let z=getLabelZone();
+            drawFittedLabel(nameBelowText,z.cx,z.cy,z.zoneW,z.zoneH,"rgba(60,180,60,0.97)","#fff");
         }
         if (feedbackVisible) drawFeedback(feedbackText);
     }
@@ -589,16 +569,15 @@
     function playAudio(idx) {
         return new Promise(resolve => {
             if (currentAudio) { currentAudio.pause(); currentAudio.currentTime=0; }
-            let src = AUDIO_FILES[idx];
+            let src=AUDIO_FILES[idx];
             if (!src) { resolve(); return; }
-            currentAudio = new Audio(src);
-            currentAudio.onended = resolve;
-            currentAudio.onerror = resolve;
+            currentAudio=new Audio(src);
+            currentAudio.onended=resolve; currentAudio.onerror=resolve;
             currentAudio.play().catch(resolve);
         });
     }
 
-    function sleep(ms) { return new Promise(r => setTimeout(r,ms)); }
+    function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
     function rnd(n)    { return Math.floor(Math.random()*n); }
 
     // -------------------------------------------------------
@@ -606,46 +585,45 @@
     // -------------------------------------------------------
     function preloadImages(cb) {
         if (!IMAGE_URLS.length) { cb(); return; }
-        loadedImages = new Array(IMAGE_URLS.length);
-        let n = 0;
-        IMAGE_URLS.forEach((url,i) => {
-            let img = new Image();
-            img.onload = img.onerror = () => { if (++n===IMAGE_URLS.length) cb(); };
-            img.src = url; loadedImages[i] = img;
+        loadedImages=new Array(IMAGE_URLS.length);
+        let n=0;
+        IMAGE_URLS.forEach((url,i)=>{
+            let img=new Image();
+            img.onload=img.onerror=()=>{ if(++n===IMAGE_URLS.length) cb(); };
+            img.src=url; loadedImages[i]=img;
         });
     }
 
-    function loadSet(set, cb) {
-        IMAGE_URLS  = set.items.map(it => `${set.folder}/${it.base}.jpg`);
-        IMAGE_NAMES = set.items.map(it => it.label);
-        AUDIO_FILES = set.items.map(it => `${set.folder}/${it.base}.mp3`);
-        loadedImages = [];
+    function loadSet(set,cb) {
+        IMAGE_URLS  = set.items.map(it=>`${set.folder}/${it.base}.jpg`);
+        IMAGE_NAMES = set.items.map(it=>it.label);
+        AUDIO_FILES = set.items.map(it=>`${set.folder}/${it.base}.mp3`);
+        loadedImages=[];
         preloadImages(cb);
     }
 
     function switchSet(i) {
         closeMenu();
-        if (i === activeSetIndex) return;
-        activeSetIndex = i;
-        gameActive = false;
+        if (i===activeSetIndex) return;
+        activeSetIndex=i; gameActive=false;
         buildMenuItems();
-        loadSet(allSets[i], () => { setupLayout(); render(); phaseOne(); });
+        loadSet(allSets[i],()=>{ setupLayout(); render(); phaseOne(); });
     }
 
     // -------------------------------------------------------
     // GAME
     // -------------------------------------------------------
     async function phaseOne() {
-        gameActive = false; clickPhase = 0;
+        gameActive=false; clickPhase=0;
         setupLayout();
-        bigVis = false; bigImg = null; bigSlot = null;
-        nameBelowVisible = false; hintVisible = false; feedbackVisible = false;
+        bigVis=false; bigImg=null; bigSlot=null;
+        nameBelowVisible=false; hintVisible=false; feedbackVisible=false;
 
         let i1=rnd(IMAGE_URLS.length), i2=rnd(IMAGE_URLS.length);
         while (i2===i1) i2=rnd(IMAGE_URLS.length);
 
-        correctImgIndex = i1; correctImgName = IMAGE_NAMES[i1];
-        correctRegion = Math.floor(Math.random()*GRID_ROWS*GRID_COLS)+1;
+        correctImgIndex=i1; correctImgName=IMAGE_NAMES[i1];
+        correctRegion=Math.floor(Math.random()*GRID_ROWS*GRID_COLS)+1;
 
         slots.single=makeSlot(centerIdx); slotImg.single=loadedImages[i1];
         slotVis.single=true; slotVis.left=false; slotVis.right=false;
@@ -679,9 +657,9 @@
 
     function hitTest(gx,gy,r) { return r&&gx>=r.x&&gx<=r.x+r.w&&gy>=r.y&&gy<=r.y+r.h; }
 
-    function handleTap(px, py) {
+    function handleTap(px,py) {
         if (!gameActive) return;
-        if (videoWrap.classList.contains("open")) return;
+        if (videoOpen) return;
         let g=toGame(px,py), gx=g.x, gy=g.y;
         if (clickPhase===1) {
             let hl=hitTest(gx,gy,slots.left), hr=hitTest(gx,gy,slots.right);
@@ -709,29 +687,29 @@
         }
     }
 
-    window.addEventListener("resize", ()=>{ setupLayout(); render(); });
-    window.addEventListener("orientationchange", ()=>{ setTimeout(()=>{ setupLayout(); render(); },350); });
+    window.addEventListener("resize",()=>{ setupLayout(); render(); });
+    window.addEventListener("orientationchange",()=>{ setTimeout(()=>{ setupLayout(); render(); },350); });
 
     // -------------------------------------------------------
-    // STARTUP — fetch both assets.json and youtube.json in parallel
+    // STARTUP
     // -------------------------------------------------------
     Promise.all([
-        fetch("assets.json?v="  + Date.now()).then(r => r.json()),
-        fetch("youtube.json?v=" + Date.now()).then(r => r.json()).catch(() => ({ videos:[] }))
+        fetch("assets.json?v="  + Date.now()).then(r=>r.json()),
+        fetch("youtube.json?v=" + Date.now()).then(r=>r.json()).catch(()=>({videos:[]}))
     ]).then(([assetData, ytData]) => {
-        allSets   = assetData.sets  || [];
-        allVideos = ytData.videos   || [];
+        allSets   = assetData.sets || [];
+        allVideos = ytData.videos  || [];
         if (!allSets.length) throw new Error("No sets in assets.json");
-        activeSetIndex = 0;
+        activeSetIndex=0;
         buildMenuItems();
         buildVideoMenu();
-        loadSet(allSets[0], ()=>{ setupLayout(); render(); phaseOne(); });
-    }).catch(err => {
-        console.error("Startup error:", err);
+        loadSet(allSets[0],()=>{ setupLayout(); render(); phaseOne(); });
+    }).catch(err=>{
+        console.error("Startup error:",err);
         setupLayout();
         ctx.fillStyle="#fff"; ctx.fillRect(0,0,GW||400,GH||300);
         ctx.fillStyle="#c00"; ctx.font="bold 18px Arial";
-        ctx.fillText("Error: " + err.message, 20, (GH||300)/2);
+        ctx.fillText("Error: "+err.message,20,(GH||300)/2);
     });
 </script>
 </body>
