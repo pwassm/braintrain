@@ -15,7 +15,6 @@
 
         #menuBtn {
             position: fixed;
-            bottom: 14px; right: 14px;
             z-index: 999;
             width: 48px; height: 48px;
             background: rgba(30,30,30,0.82);
@@ -25,20 +24,28 @@
             align-items: center; justify-content: center;
             gap: 6px; padding: 10px;
             touch-action: manipulation;
+            /* default: physical bottom-right (landscape screen, or desktop) */
+            bottom: 14px; right: 14px;
         }
+        /* When canvas is CSS-rotated (portrait phone),
+           physical bottom-right = game's upper-right, which is wrong.
+           physical bottom-LEFT = game's lower-right — correct. */
+        #menuBtn.portrait-mode  { bottom: 14px; right: auto; left: 14px; }
         #menuBtn span { display:block; width:100%; height:3px; background:#fff; border-radius:2px; }
         #menuBtn.open { background: rgba(30,30,30,0.97); }
 
         #menuPanel {
             position: fixed;
-            bottom: 70px; right: 14px;
             z-index: 998;
             background: rgba(25,25,25,0.96);
             border-radius: 10px; overflow: hidden;
             display: none; flex-direction: column;
-            min-width: 210px;
+            min-width: 200px;
             box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+            /* default */
+            bottom: 70px; right: 14px;
         }
+        #menuPanel.portrait-mode { bottom: 70px; right: auto; left: 14px; }
         #menuPanel.open { display: flex; }
 
         .menu-item {
@@ -50,22 +57,21 @@
         .menu-item:last-child { border-bottom: none; }
         .menu-item:hover, .menu-item:active { background: rgba(255,255,255,0.12); }
         .menu-item.active-set { color: #6f6; }
-        .menu-divider { height:1px; background:rgba(255,255,255,0.18); margin:2px 0; }
+        .menu-divider { height:1px; background:rgba(255,255,255,0.15); margin:2px 0; }
 
-        /* Video sub-items — indented, teal tint */
-        .video-choice {
-            padding: 10px 18px 10px 32px;
-            color: #7df;
+        /* Indented video sub-items */
+        .video-sub {
+            padding: 10px 18px 10px 30px;
+            color: #8ef;
             font: 14px Arial, sans-serif;
             cursor: pointer; white-space: nowrap;
             border-bottom: 1px solid rgba(255,255,255,0.05);
-            display: none;   /* shown when Play is expanded */
+            display: none;
         }
-        .video-choice:hover, .video-choice:active { background: rgba(100,200,255,0.12); }
-        #menuPanel.videos-open .video-choice { display: block; }
-        #miPlay.expanded { color: #7df; }
+        .video-sub.visible { display: block; }
+        .video-sub:hover, .video-sub:active { background: rgba(100,200,255,0.1); }
 
-        /* videoWrap — NO background, so canvas grid shows through */
+        /* videoWrap — transparent so canvas grid shows through */
         #videoWrap {
             display: none;
             position: absolute;
@@ -104,25 +110,22 @@
 
 <div id="menuPanel">
     <div class="menu-item" id="miPlay">Play</div>
-    <!-- video choices injected here by buildVideoMenu(), hidden until expanded -->
+    <!-- video sub-items injected after miPlay -->
     <div class="menu-divider"></div>
     <div class="menu-item" id="miConfig">Config</div>
     <div class="menu-item" id="miHelp">Help</div>
-    <div class="menu-divider" id="miSetDivider"></div>
+    <div class="menu-divider"></div>
     <!-- set items appended here -->
 </div>
 
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
-    // ============================================================
-    // Asset arrays
-    // ============================================================
     let IMAGE_URLS  = [];
     let IMAGE_NAMES = [];
     let AUDIO_FILES = [];
     let allSets        = [];
     let activeSetIndex = 0;
-    let allVideos      = [];   // from youtube.json
+    let allVideos      = [];
 
     const GRID_LINES       = 4;
     const GRID_COLS        = GRID_LINES + 1;
@@ -169,43 +172,37 @@
     let seekDebounce = false;
     let currentVideo = null;
     let videoOpen    = false;
+    let playExpanded = false;
 
     window.onYouTubeIframeAPIReady = function() { ytAPIReady = true; };
 
-    // Build video sub-items inside menuPanel, hidden by default
     function buildVideoMenu() {
-        document.querySelectorAll(".video-choice").forEach(el => el.remove());
-        let insertBefore = document.querySelector(".menu-divider");
+        document.querySelectorAll(".video-sub").forEach(el => el.remove());
+        let anchor = document.getElementById("miPlay");
         allVideos.forEach((vid, i) => {
             let el = document.createElement("div");
-            el.className = "video-choice";
-            el.textContent = "  > " + (vid.label || ("Video " + (i+1)));
+            el.className = "video-sub";
+            el.textContent = "  > " + (vid.label || "Video " + (i+1));
             el.addEventListener("pointerup", e => {
                 e.stopPropagation();
-                collapseVideoList();
+                collapsePlay();
                 closeMenu();
                 openVideo(vid);
             });
-            menuPanel.insertBefore(el, insertBefore);
+            anchor.parentNode.insertBefore(el, anchor.nextSibling);
+            anchor = el;
         });
     }
 
-    let videosExpanded = false;
-    function toggleVideoList() {
-        videosExpanded = !videosExpanded;
-        if (videosExpanded) {
-            menuPanel.classList.add("videos-open");
-            document.getElementById("miPlay").classList.add("expanded");
-        } else {
-            collapseVideoList();
-        }
+    function expandPlay()   {
+        playExpanded = true;
+        document.querySelectorAll(".video-sub").forEach(el => el.classList.add("visible"));
     }
-    function collapseVideoList() {
-        videosExpanded = false;
-        menuPanel.classList.remove("videos-open");
-        let miPlay = document.getElementById("miPlay");
-        if (miPlay) miPlay.classList.remove("expanded");
+    function collapsePlay() {
+        playExpanded = false;
+        document.querySelectorAll(".video-sub").forEach(el => el.classList.remove("visible"));
     }
+    function togglePlay()   { if (playExpanded) collapsePlay(); else expandPlay(); }
 
     function positionVideoWrap() {
         let cx = Math.floor(cellW * 2);
@@ -238,16 +235,9 @@
         let ch = Math.floor(cellH * 3);
         let fw = Math.round(ch * 16 / 9);
         let fx = Math.round((cw - fw) / 2);
-        let cx = Math.floor(cellW * 2);
-        let cy = Math.floor(cellH * 1);
 
-        videoWrap.style.left   = cx + "px";
-        videoWrap.style.top    = cy + "px";
-        videoWrap.style.width  = cw + "px";
-        videoWrap.style.height = ch + "px";
+        positionVideoWrap();
         videoWrap.classList.add("open");
-
-        // Render grid only (no game images) so background shows through video
         renderGridOnly();
 
         function applyIframeSize() {
@@ -261,14 +251,17 @@
 
         if (ytPlayer) {
             applyIframeSize();
-            ytPlayer.loadVideoById({ videoId: vid.id, startSeconds: vid.start });
+            ytPlayer.loadVideoById({
+                videoId:      vid.id,
+                startSeconds: vid.start || 0
+            });
+            if (vid.mute) ytPlayer.mute(); else ytPlayer.unMute();
             startLoopWatcher();
             return;
         }
 
         if (!ytAPIReady) { setTimeout(() => openVideo(vid), 300); return; }
 
-        // Recreate placeholder div if needed
         let ytDiv = document.getElementById("ytDiv");
         if (!ytDiv) {
             ytDiv = document.createElement("div");
@@ -282,20 +275,23 @@
             videoId: vid.id,
             playerVars: {
                 autoplay:       1,
-                start:          vid.start,
+                start:          vid.start || 0,
                 controls:       0,
                 rel:            0,
                 modestbranding: 1,
                 playsinline:    1,
-                enablejsapi:    1
+                enablejsapi:    1,
+                mute:           vid.mute ? 1 : 0
             },
             events: {
                 onReady: function(e) {
                     applyIframeSize();
+                    if (vid.mute) e.target.mute();
                     e.target.playVideo();
                     startLoopWatcher();
                 },
                 onStateChange: function(e) {
+                    // State 0 = ended
                     if (e.data === YT.PlayerState.ENDED) doSeekLoop();
                 }
             }
@@ -305,7 +301,8 @@
     function doSeekLoop() {
         if (!currentVideo || seekDebounce) return;
         seekDebounce = true;
-        ytPlayer.seekTo(currentVideo.start, true);
+        // end===0 means play full video; on ENDED just restart from start (or 0)
+        ytPlayer.seekTo(currentVideo.start || 0, true);
         ytPlayer.playVideo();
         setTimeout(() => { seekDebounce = false; }, 800);
     }
@@ -316,8 +313,10 @@
             if (!videoOpen) return;
             if (!ytPlayer || typeof ytPlayer.getCurrentTime !== "function") return;
             try {
+                // Only do mid-video seek-loop if end > 0
+                if (!currentVideo || !currentVideo.end) return;
                 let t = ytPlayer.getCurrentTime();
-                if (!seekDebounce && currentVideo && t >= currentVideo.end) doSeekLoop();
+                if (!seekDebounce && t >= currentVideo.end) doSeekLoop();
             } catch(e) {}
         }, 250);
     }
@@ -328,28 +327,26 @@
         if (loopInterval) { clearInterval(loopInterval); loopInterval = null; }
         if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
         currentVideo = null;
-        // Resume normal render
         render();
-        // Resume game if it was running
         if (clickPhase > 0) gameActive = true;
     }
 
     closeVideoBtn.addEventListener("pointerup", e => { e.stopPropagation(); closeVideo(); });
 
     // -------------------------------------------------------
-    // RENDER GRID ONLY (for video background)
+    // GRID-ONLY RENDER
     // -------------------------------------------------------
     function renderGridOnly() {
         ctx.fillStyle = bgColor;
-        ctx.fillRect(0,0,GW,GH);
-        ctx.strokeStyle="#000"; ctx.lineWidth=1;
-        for (let i=1;i<=GRID_LINES;i++) {
-            let x=GW*i/(GRID_LINES+1);
-            ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,GH);ctx.stroke();
+        ctx.fillRect(0, 0, GW, GH);
+        ctx.strokeStyle = "#000"; ctx.lineWidth = 1;
+        for (let i=1; i<=GRID_LINES; i++) {
+            let x = GW*i/(GRID_LINES+1);
+            ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,GH); ctx.stroke();
         }
-        for (let i=1;i<=GRID_LINES;i++) {
-            let y=GH*i/(GRID_LINES+1);
-            ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(GW,y);ctx.stroke();
+        for (let i=1; i<=GRID_LINES; i++) {
+            let y = GH*i/(GRID_LINES+1);
+            ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(GW,y); ctx.stroke();
         }
     }
 
@@ -362,14 +359,25 @@
             let el = document.createElement("div");
             el.className = "menu-item menu-set-item" +
                            (i === activeSetIndex ? " active-set" : "");
-            el.textContent = (i === activeSetIndex ? "  " : "     ") + set.name;
+            el.textContent = (i === activeSetIndex ? "+ " : "  ") + set.name;
             el.addEventListener("pointerup", e => { e.stopPropagation(); switchSet(i); });
             menuPanel.appendChild(el);
         });
     }
 
+    // Apply portrait-mode class to hamburger + panel based on isPortrait
+    function updateMenuPosition() {
+        if (isPortrait) {
+            menuBtn.classList.add("portrait-mode");
+            menuPanel.classList.add("portrait-mode");
+        } else {
+            menuBtn.classList.remove("portrait-mode");
+            menuPanel.classList.remove("portrait-mode");
+        }
+    }
+
     function closeMenu() {
-        collapseVideoList();
+        collapsePlay();
         menuPanel.classList.remove("open");
         menuBtn.classList.remove("open");
     }
@@ -378,19 +386,18 @@
         e.stopPropagation();
         let isOpen = menuPanel.classList.toggle("open");
         menuBtn.classList.toggle("open", isOpen);
-        if (!isOpen) collapseVideoList();
+        if (!isOpen) collapsePlay();
     });
     menuPanel.addEventListener("pointerup", e => e.stopPropagation());
 
     document.getElementById("miPlay").addEventListener("pointerup", e => {
-        e.stopPropagation();
-        toggleVideoList();
+        e.stopPropagation(); togglePlay();
     });
     document.getElementById("miConfig").addEventListener("pointerup", e => {
-        e.stopPropagation(); closeMenu(); alert("Config — coming soon");
+        e.stopPropagation(); closeMenu(); alert("Config - coming soon");
     });
     document.getElementById("miHelp").addEventListener("pointerup", e => {
-        e.stopPropagation(); closeMenu(); alert("Help — coming soon");
+        e.stopPropagation(); closeMenu(); alert("Help - coming soon");
     });
 
     function handleDocPointerUp(e) {
@@ -403,24 +410,20 @@
     // LAYOUT
     // -------------------------------------------------------
     function setupLayout() {
-        let pw = window.innerWidth;
-        let ph = window.innerHeight;
+        let pw = window.innerWidth, ph = window.innerHeight;
         isPortrait = pw < ph;
-        let isMobile = Math.min(pw, ph) < 600;
-        bgColor = isMobile ? "#7ab8e8" : "#ffffff";
+        bgColor = Math.min(pw,ph) < 600 ? "#7ab8e8" : "#ffffff";
 
         if (isPortrait) {
             GW = ph; GH = pw;
-            canvas.width  = GW; canvas.height = GH;
-            wrap.style.width  = GW + "px";
-            wrap.style.height = GH + "px";
+            canvas.width = GW; canvas.height = GH;
+            wrap.style.width  = GW+"px"; wrap.style.height = GH+"px";
             wrap.style.transformOrigin = "0 0";
-            wrap.style.transform = "rotate(90deg) translateY(-" + pw + "px)";
+            wrap.style.transform = "rotate(90deg) translateY(-"+pw+"px)";
         } else {
             GW = pw; GH = ph;
-            canvas.width  = GW; canvas.height = GH;
-            wrap.style.width  = GW + "px";
-            wrap.style.height = GH + "px";
+            canvas.width = GW; canvas.height = GH;
+            wrap.style.width  = GW+"px"; wrap.style.height = GH+"px";
             wrap.style.transformOrigin = "0 0";
             wrap.style.transform = "none";
         }
@@ -428,53 +431,46 @@
         cellW = GW / GRID_COLS;
         cellH = GH / GRID_ROWS;
 
-        let maxW = cellW - IMG_PAD * 2;
-        let maxH = cellH - IMG_PAD * 2;
-        if (maxW * 9 / 16 <= maxH) {
-            imgW = Math.floor(maxW); imgH = Math.floor(maxW * 9 / 16);
+        let maxW = cellW - IMG_PAD*2, maxH = cellH - IMG_PAD*2;
+        if (maxW*9/16 <= maxH) {
+            imgW = Math.floor(maxW); imgH = Math.floor(maxW*9/16);
         } else {
-            imgH = Math.floor(maxH); imgW = Math.floor(maxH * 16 / 9);
+            imgH = Math.floor(maxH); imgW = Math.floor(maxH*16/9);
         }
 
+        updateMenuPosition();   // <-- reposition hamburger after layout
         if (videoWrap.classList.contains("open")) positionVideoWrap();
     }
 
-    function toGame(px, py) {
-        if (isPortrait) return { x: py, y: window.innerWidth - px };
-        return { x: px, y: py };
+    function toGame(px,py) {
+        if (isPortrait) return { x:py, y:window.innerWidth-px };
+        return { x:px, y:py };
     }
-
     function getCenter(idx) {
-        let row = Math.floor((idx-1)/GRID_COLS)+1;
-        let col = ((idx-1)%GRID_COLS)+1;
+        let row=Math.floor((idx-1)/GRID_COLS)+1, col=((idx-1)%GRID_COLS)+1;
         return { x:(col-0.5)*cellW, y:(row-0.5)*cellH };
     }
-
-    function getRegion(gx, gy) {
-        let col = Math.floor(gx/cellW)+1;
-        let row = Math.floor(gy/cellH)+1;
-        if (col<1||col>GRID_COLS||row<1||row>GRID_ROWS) return 0;
+    function getRegion(gx,gy) {
+        let col=Math.floor(gx/cellW)+1, row=Math.floor(gy/cellH)+1;
+        if(col<1||col>GRID_COLS||row<1||row>GRID_ROWS) return 0;
         return (row-1)*GRID_COLS+col;
     }
 
     let centerIdx = ((Math.ceil(GRID_ROWS/2)-1)*GRID_COLS)+Math.ceil(GRID_COLS/2);
-    let leftIdx   = centerIdx - 1;
-    let rightIdx  = centerIdx + 1;
+    let leftIdx   = centerIdx-1;
+    let rightIdx  = centerIdx+1;
 
     function makeSlot(idx) {
-        let c = getCenter(idx);
+        let c=getCenter(idx);
         return { x:Math.floor(c.x-imgW/2), y:Math.floor(c.y-imgH/2), w:imgW, h:imgH };
     }
-
     function makeBigSlot(img) {
         let boxX=cellW, boxY=cellH, boxW=cellW*3, boxH=cellH*3;
-        let iw=img.naturalWidth||img.width||boxW;
-        let ih=img.naturalHeight||img.height||boxH;
+        let iw=img.naturalWidth||img.width||boxW, ih=img.naturalHeight||img.height||boxH;
         let scale=Math.min(boxW/iw, boxH/ih);
         let dw=Math.floor(iw*scale), dh=Math.floor(ih*scale);
         return { x:Math.floor(boxX+(boxW-dw)/2), y:Math.floor(boxY+(boxH-dh)/2), w:dw, h:dh };
     }
-
     function getLabelZone() {
         return { cx:cellW*2.5, cy:cellH*4.5, zoneW:cellW*3, zoneH:cellH };
     }
@@ -482,48 +478,32 @@
     // -------------------------------------------------------
     // DRAWING
     // -------------------------------------------------------
-    function drawImg(img, r) {
-        ctx.save();
-        ctx.beginPath(); ctx.rect(r.x,r.y,r.w,r.h); ctx.clip();
-        ctx.drawImage(img, r.x,r.y,r.w,r.h);
-        ctx.restore();
-        ctx.strokeStyle="#333"; ctx.lineWidth=2;
-        ctx.strokeRect(r.x,r.y,r.w,r.h);
+    function drawImg(img,r) {
+        ctx.save(); ctx.beginPath(); ctx.rect(r.x,r.y,r.w,r.h); ctx.clip();
+        ctx.drawImage(img,r.x,r.y,r.w,r.h); ctx.restore();
+        ctx.strokeStyle="#333"; ctx.lineWidth=2; ctx.strokeRect(r.x,r.y,r.w,r.h);
     }
-
-    function drawBigImg(img, r) {
-        ctx.drawImage(img, r.x,r.y,r.w,r.h);
-        ctx.strokeStyle="#333"; ctx.lineWidth=2;
-        ctx.strokeRect(r.x,r.y,r.w,r.h);
+    function drawBigImg(img,r) {
+        ctx.drawImage(img,r.x,r.y,r.w,r.h);
+        ctx.strokeStyle="#333"; ctx.lineWidth=2; ctx.strokeRect(r.x,r.y,r.w,r.h);
     }
-
-    function drawHint(img, regionIdx) {
-        let c  = getCenter(regionIdx);
-        let tw = Math.floor(imgW * 0.20);
-        let th = Math.floor(imgH * 0.20);
-        let tx = Math.floor(c.x - tw / 2);
-        let ty = Math.floor(c.y - th / 2);
-        ctx.drawImage(img, tx, ty, tw, th);
-        ctx.strokeStyle="rgba(0,0,0,0.6)"; ctx.lineWidth=1;
-        ctx.strokeRect(tx, ty, tw, th);
+    function drawHint(img,regionIdx) {
+        let c=getCenter(regionIdx);
+        let tw=Math.floor(imgW*0.20), th=Math.floor(imgH*0.20);
+        let tx=Math.floor(c.x-tw/2), ty=Math.floor(c.y-th/2);
+        ctx.drawImage(img,tx,ty,tw,th);
+        ctx.strokeStyle="rgba(0,0,0,0.6)"; ctx.lineWidth=1; ctx.strokeRect(tx,ty,tw,th);
     }
-
-    function drawFittedLabel(text, cx, cy, maxW, maxH, bg, fg) {
+    function drawFittedLabel(text,cx,cy,maxW,maxH,bg,fg) {
         let pad=10, fs=Math.floor(maxH*0.275);
         ctx.font="bold "+fs+"px Arial";
-        while (fs>4 && ctx.measureText(text).width>maxW-pad*2) {
-            fs--; ctx.font="bold "+fs+"px Arial";
-        }
-        let tw=ctx.measureText(text).width;
-        let bw=tw+pad*2, bh=fs+pad*2;
-        let bx=Math.max(2,Math.min(cx-bw/2,GW-bw-2));
-        let by=Math.max(2,Math.min(cy-bh/2,GH-bh-2));
+        while(fs>4&&ctx.measureText(text).width>maxW-pad*2){fs--;ctx.font="bold "+fs+"px Arial";}
+        let tw=ctx.measureText(text).width, bw=tw+pad*2, bh=fs+pad*2;
+        let bx=Math.max(2,Math.min(cx-bw/2,GW-bw-2)), by=Math.max(2,Math.min(cy-bh/2,GH-bh-2));
         ctx.fillStyle=bg; ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(bx,by,bw,bh,6); else ctx.rect(bx,by,bw,bh);
-        ctx.fill(); ctx.fillStyle=fg;
-        ctx.fillText(text,bx+pad,by+pad+fs*0.85);
+        if(ctx.roundRect) ctx.roundRect(bx,by,bw,bh,6); else ctx.rect(bx,by,bw,bh);
+        ctx.fill(); ctx.fillStyle=fg; ctx.fillText(text,bx+pad,by+pad+fs*0.85);
     }
-
     function drawFeedback(text) {
         let fs=Math.max(12,Math.floor(GH/10));
         ctx.font="bold "+fs+"px Arial";
@@ -532,68 +512,63 @@
         let pad=24, bw=maxW+pad*2, bh=(fs+10)*lines.length+pad*2;
         let bx=GW/2-bw/2, by=GH/2-bh/2;
         ctx.fillStyle="rgba(255,60,60,0.97)"; ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(bx,by,bw,bh,10); else ctx.rect(bx,by,bw,bh);
+        if(ctx.roundRect) ctx.roundRect(bx,by,bw,bh,10); else ctx.rect(bx,by,bw,bh);
         ctx.fill(); ctx.fillStyle="#fff";
-        lines.forEach((l,i)=>ctx.fillText(l,GW/2-ctx.measureText(l).width/2,
-            by+pad+fs*0.85+i*(fs+10)));
+        lines.forEach((l,i)=>ctx.fillText(l,GW/2-ctx.measureText(l).width/2,by+pad+fs*0.85+i*(fs+10)));
     }
 
     function render() {
-        // While video is open just keep the grid visible, no game images
         if (videoOpen) { renderGridOnly(); return; }
         ctx.fillStyle=bgColor; ctx.fillRect(0,0,GW,GH);
         ctx.strokeStyle="#000"; ctx.lineWidth=1;
-        for (let i=1;i<=GRID_LINES;i++) {
+        for(let i=1;i<=GRID_LINES;i++){
             let x=GW*i/(GRID_LINES+1);
             ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,GH);ctx.stroke();
         }
-        for (let i=1;i<=GRID_LINES;i++) {
+        for(let i=1;i<=GRID_LINES;i++){
             let y=GH*i/(GRID_LINES+1);
             ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(GW,y);ctx.stroke();
         }
         ["single","left","right"].forEach(k=>{
             if(slotVis[k]&&slotImg[k]&&slots[k]) drawImg(slotImg[k],slots[k]);
         });
-        if (bigVis&&bigImg&&bigSlot) drawBigImg(bigImg,bigSlot);
-        if (hintVisible&&hintImg) drawHint(hintImg,hintRegion);
-        if (nameBelowVisible) {
+        if(bigVis&&bigImg&&bigSlot) drawBigImg(bigImg,bigSlot);
+        if(hintVisible&&hintImg) drawHint(hintImg,hintRegion);
+        if(nameBelowVisible){
             let z=getLabelZone();
             drawFittedLabel(nameBelowText,z.cx,z.cy,z.zoneW,z.zoneH,"rgba(60,180,60,0.97)","#fff");
         }
-        if (feedbackVisible) drawFeedback(feedbackText);
+        if(feedbackVisible) drawFeedback(feedbackText);
     }
 
     // -------------------------------------------------------
     // AUDIO
     // -------------------------------------------------------
     function playAudio(idx) {
-        return new Promise(resolve => {
-            if (currentAudio) { currentAudio.pause(); currentAudio.currentTime=0; }
+        return new Promise(resolve=>{
+            if(currentAudio){currentAudio.pause();currentAudio.currentTime=0;}
             let src=AUDIO_FILES[idx];
-            if (!src) { resolve(); return; }
+            if(!src){resolve();return;}
             currentAudio=new Audio(src);
             currentAudio.onended=resolve; currentAudio.onerror=resolve;
             currentAudio.play().catch(resolve);
         });
     }
-
-    function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
-    function rnd(n)    { return Math.floor(Math.random()*n); }
+    function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+    function rnd(n){return Math.floor(Math.random()*n);}
 
     // -------------------------------------------------------
     // ASSET LOADING
     // -------------------------------------------------------
     function preloadImages(cb) {
-        if (!IMAGE_URLS.length) { cb(); return; }
-        loadedImages=new Array(IMAGE_URLS.length);
-        let n=0;
+        if(!IMAGE_URLS.length){cb();return;}
+        loadedImages=new Array(IMAGE_URLS.length); let n=0;
         IMAGE_URLS.forEach((url,i)=>{
             let img=new Image();
-            img.onload=img.onerror=()=>{ if(++n===IMAGE_URLS.length) cb(); };
+            img.onload=img.onerror=()=>{if(++n===IMAGE_URLS.length)cb();};
             img.src=url; loadedImages[i]=img;
         });
     }
-
     function loadSet(set,cb) {
         IMAGE_URLS  = set.items.map(it=>`${set.folder}/${it.base}.jpg`);
         IMAGE_NAMES = set.items.map(it=>it.label);
@@ -604,10 +579,12 @@
 
     function switchSet(i) {
         closeMenu();
-        if (i===activeSetIndex) return;
+        if(i===activeSetIndex) return;
         activeSetIndex=i; gameActive=false;
+        // Close video if open, then start game
+        if (videoOpen) closeVideo();
         buildMenuItems();
-        loadSet(allSets[i],()=>{ setupLayout(); render(); phaseOne(); });
+        loadSet(allSets[i],()=>{setupLayout();render();phaseOne();});
     }
 
     // -------------------------------------------------------
@@ -616,11 +593,11 @@
     async function phaseOne() {
         gameActive=false; clickPhase=0;
         setupLayout();
-        bigVis=false; bigImg=null; bigSlot=null;
-        nameBelowVisible=false; hintVisible=false; feedbackVisible=false;
+        bigVis=false;bigImg=null;bigSlot=null;
+        nameBelowVisible=false;hintVisible=false;feedbackVisible=false;
 
         let i1=rnd(IMAGE_URLS.length), i2=rnd(IMAGE_URLS.length);
-        while (i2===i1) i2=rnd(IMAGE_URLS.length);
+        while(i2===i1) i2=rnd(IMAGE_URLS.length);
 
         correctImgIndex=i1; correctImgName=IMAGE_NAMES[i1];
         correctRegion=Math.floor(Math.random()*GRID_ROWS*GRID_COLS)+1;
@@ -633,10 +610,10 @@
         slotVis.single=false; hintVisible=false; render();
         await sleep(GAP_BEFORE_PAIR);
 
-        if (Math.random()<0.5) {
-            slotImg.left=loadedImages[i2]; slotImg.right=loadedImages[i1]; correctSide="right";
+        if(Math.random()<0.5){
+            slotImg.left=loadedImages[i2];slotImg.right=loadedImages[i1];correctSide="right";
         } else {
-            slotImg.left=loadedImages[i1]; slotImg.right=loadedImages[i2]; correctSide="left";
+            slotImg.left=loadedImages[i1];slotImg.right=loadedImages[i2];correctSide="left";
         }
         slots.left=makeSlot(leftIdx); slots.right=makeSlot(rightIdx);
         slotVis.left=slotVis.right=true;
@@ -655,29 +632,28 @@
         render(); await sleep(300); phaseOne();
     }
 
-    function hitTest(gx,gy,r) { return r&&gx>=r.x&&gx<=r.x+r.w&&gy>=r.y&&gy<=r.y+r.h; }
+    function hitTest(gx,gy,r){return r&&gx>=r.x&&gx<=r.x+r.w&&gy>=r.y&&gy<=r.y+r.h;}
 
     function handleTap(px,py) {
-        if (!gameActive) return;
-        if (videoOpen) return;
+        if(!gameActive||videoOpen) return;
         let g=toGame(px,py), gx=g.x, gy=g.y;
-        if (clickPhase===1) {
+        if(clickPhase===1){
             let hl=hitTest(gx,gy,slots.left), hr=hitTest(gx,gy,slots.right);
-            if (!hl&&!hr) return;
+            if(!hl&&!hr) return;
             gameActive=false;
             let side=hl?"left":"right";
-            if (side!==correctSide) {
+            if(side!==correctSide){
                 slotVis.left=slotVis.right=false;
                 feedbackText="WRONG\\nIMAGE"; feedbackVisible=true; render();
                 sleep(WRONG_IMG_MS).then(()=>{feedbackVisible=false;render();sleep(300).then(phaseOne);});
             } else {
-                if (side==="left") slotVis.right=false; else slotVis.left=false;
+                if(side==="left") slotVis.right=false; else slotVis.left=false;
                 render(); clickPhase=2; gameActive=true;
             }
-        } else if (clickPhase===2) {
+        } else if(clickPhase===2){
             gameActive=false;
             let region=getRegion(gx,gy);
-            if (region===correctRegion) {
+            if(region===correctRegion){
                 handleCorrectLocation();
             } else {
                 slotVis.left=slotVis.right=false;
@@ -687,8 +663,8 @@
         }
     }
 
-    window.addEventListener("resize",()=>{ setupLayout(); render(); });
-    window.addEventListener("orientationchange",()=>{ setTimeout(()=>{ setupLayout(); render(); },350); });
+    window.addEventListener("resize",()=>{setupLayout();render();});
+    window.addEventListener("orientationchange",()=>{setTimeout(()=>{setupLayout();render();},350);});
 
     // -------------------------------------------------------
     // STARTUP
@@ -696,14 +672,14 @@
     Promise.all([
         fetch("assets.json?v="  + Date.now()).then(r=>r.json()),
         fetch("youtube.json?v=" + Date.now()).then(r=>r.json()).catch(()=>({videos:[]}))
-    ]).then(([assetData, ytData]) => {
+    ]).then(([assetData, ytData])=>{
         allSets   = assetData.sets || [];
         allVideos = ytData.videos  || [];
-        if (!allSets.length) throw new Error("No sets in assets.json");
+        if(!allSets.length) throw new Error("No sets in assets.json");
         activeSetIndex=0;
         buildMenuItems();
         buildVideoMenu();
-        loadSet(allSets[0],()=>{ setupLayout(); render(); phaseOne(); });
+        loadSet(allSets[0],()=>{setupLayout();render();phaseOne();});
     }).catch(err=>{
         console.error("Startup error:",err);
         setupLayout();
