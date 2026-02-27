@@ -10,11 +10,13 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { overflow: hidden; touch-action: manipulation; background: #000; }
+        
         #rotateWrap { position: fixed; top: 0; left: 0; }
         #gameCanvas { display: block; }
 
+        /* -- Menu is now INSIDE rotateWrap, so it automatically rotates with the game! -- */
         #menuWrap {
-            position: fixed;
+            position: absolute;
             z-index: 999;
             bottom: 14px;
             right: 14px;
@@ -29,7 +31,6 @@
             align-items: center; justify-content: center;
             gap: 6px; padding: 10px;
             touch-action: manipulation;
-            transform: rotate(90deg);   /* bars run vertically = landscape orientation */
         }
         #menuBtn.open { background: rgba(30,30,30,0.97); }
         #menuBtn span {
@@ -41,7 +42,6 @@
             position: absolute;
             bottom: 54px;
             right: 0;
-            left: auto;
             z-index: 998;
             background: rgba(25,25,25,0.96);
             border-radius: 10px;
@@ -101,23 +101,25 @@
 
 <div id="rotateWrap">
     <canvas id="gameCanvas"></canvas>
+    
     <div id="videoWrap">
         <div id="ytDiv"></div>
         <button id="closeVideoBtn" aria-label="Close">X</button>
     </div>
-</div>
 
-<div id="menuWrap">
-    <div id="menuPanel">
-        <div class="menu-item" id="miPlay">Play</div>
-        <div class="menu-divider"></div>
-        <div class="menu-item" id="miConfig">Config</div>
-        <div class="menu-item" id="miHelp">Help</div>
-        <div class="menu-divider"></div>
+    <!-- The menu is now INSIDE rotateWrap -->
+    <div id="menuWrap">
+        <div id="menuPanel">
+            <div class="menu-item" id="miPlay">Play</div>
+            <div class="menu-divider"></div>
+            <div class="menu-item" id="miConfig">Config</div>
+            <div class="menu-item" id="miHelp">Help</div>
+            <div class="menu-divider"></div>
+        </div>
+        <button id="menuBtn" aria-label="Menu">
+            <span></span><span></span><span></span>
+        </button>
     </div>
-    <button id="menuBtn" aria-label="Menu">
-        <span></span><span></span><span></span>
-    </button>
 </div>
 
 <script src="https://www.youtube.com/iframe_api"></script>
@@ -362,29 +364,6 @@
         });
     }
 
-    function updateMenuPosition() {
-        let PAD = 14;
-        if (isPortrait) {
-            // Game's bottom-right = physical bottom-left
-            menuWrap.style.bottom = PAD + "px";
-            menuWrap.style.left   = PAD + "px";
-            menuWrap.style.right  = "auto";
-            // Panel opens rightward in physical space = game-upward
-            menuPanel.style.bottom = "0";
-            menuPanel.style.left   = "54px";
-            menuPanel.style.right  = "auto";
-        } else {
-            // Landscape / desktop: physical bottom-right
-            menuWrap.style.bottom  = PAD + "px";
-            menuWrap.style.right   = PAD + "px";
-            menuWrap.style.left    = "auto";
-            // Panel opens upward
-            menuPanel.style.bottom = "54px";
-            menuPanel.style.right  = "0";
-            menuPanel.style.left   = "auto";
-        }
-    }
-
     function closeMenu() {
         collapsePlay();
         menuPanel.classList.remove("open");
@@ -447,7 +426,6 @@
             imgH = Math.floor(maxH); imgW = Math.floor(maxH * 16 / 9);
         }
 
-        updateMenuPosition();
         if (videoWrap.classList.contains("open")) positionVideoWrap();
     }
 
