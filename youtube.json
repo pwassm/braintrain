@@ -5,28 +5,32 @@
       "label": "Serving Underspin",
       "start": 2,
       "end": 12,
-      "mute": 0
+      "mute": 0,
+      "islandscape": 0
     },
     {
       "id": "IpBrqPzyLds",
       "label": "9Jan2026, Wroclaw Zoo",
       "start": 4,
       "end": 38,
-      "mute": 0
+      "mute": 0,
+      "islandscape": 1
     },
     {
       "id": "K738pe3dMK0",
       "label": "Single Arm Drill for freestyle",
       "start": 4,
       "end": 38,
-      "mute": 0
+      "mute": 0,
+      "islandscape": 0
     },
     {
       "id": "-ZiSU3duFVM",
       "label": "Get More Spin",
       "start": 2,
       "end": 12,
-      "mute": 1
+      "mute": 1,
+      "islandscape": 0
     }
     
     
