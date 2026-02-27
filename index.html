@@ -26,7 +26,7 @@
             gap: 6px; padding: 10px;
             touch-action: manipulation;
         }
-        #menuBtn span { display: block; width: 100%; height: 3px; background: #fff; border-radius: 2px; }
+        #menuBtn span { display:block; width:100%; height:3px; background:#fff; border-radius:2px; }
         #menuBtn.open { background: rgba(30,30,30,0.97); }
 
         #menuPanel {
@@ -40,10 +40,8 @@
             box-shadow: 0 4px 24px rgba(0,0,0,0.5);
         }
         #menuPanel.open { display: flex; }
-
         .menu-item {
-            padding: 13px 18px;
-            color: #fff;
+            padding: 13px 18px; color: #fff;
             font: 15px Arial, sans-serif;
             cursor: pointer; white-space: nowrap;
             border-bottom: 1px solid rgba(255,255,255,0.08);
@@ -51,23 +49,27 @@
         .menu-item:last-child { border-bottom: none; }
         .menu-item:hover, .menu-item:active { background: rgba(255,255,255,0.12); }
         .menu-item.active-set { color: #6f6; }
-        .menu-divider { height: 1px; background: rgba(255,255,255,0.15); margin: 2px 0; }
+        .menu-divider { height:1px; background:rgba(255,255,255,0.15); margin:2px 0; }
 
         /*
-         * videoWrap: col 3, rows 2-4 only (portrait 1×3 cells).
-         * overflow:hidden clips the wider iframe so black side bars vanish.
+         * videoWrap + ytDiv live INSIDE rotateWrap so they share
+         * the canvas rotation transform automatically.
+         * Size and position are set in JS after cellW/cellH are known.
          */
         #videoWrap {
             display: none;
             position: absolute;
             z-index: 10;
             overflow: hidden;
+            background: #000;
         }
         #videoWrap.open { display: block; }
 
-        #videoIframe {
+        /* ytDiv is the div that YT.Player() replaces with an iframe */
+        #ytDiv {
             position: absolute;
-            border: none;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
         }
 
         #closeVideoBtn {
@@ -75,10 +77,8 @@
             top: 4px; right: 4px;
             z-index: 20;
             background: rgba(20,20,20,0.85);
-            color: #fff;
-            border: none; border-radius: 6px;
-            font-size: 16px;
-            width: 28px; height: 28px;
+            color: #fff; border: none; border-radius: 6px;
+            font-size: 16px; width: 28px; height: 28px;
             cursor: pointer;
             display: flex; align-items: center; justify-content: center;
             touch-action: manipulation;
@@ -90,26 +90,30 @@
 <div id="rotateWrap">
     <canvas id="gameCanvas"></canvas>
     <div id="videoWrap">
-        <button id="closeVideoBtn" aria-label="Close">✕</button>
-        <iframe id="videoIframe" src=""
-            allow="autoplay; encrypted-media; gyroscope"
-            allowfullscreen>
-        </iframe>
+        <!-- YT.Player replaces this div with an iframe -->
+        <div id="ytDiv"></div>
+        <button id="closeVideoBtn" aria-label="Close">?</button>
     </div>
 </div>
 
 <button id="menuBtn" aria-label="Menu">
     <span></span><span></span><span></span>
 </button>
-
 <div id="menuPanel">
-    <div class="menu-item" id="miPlay">▶&nbsp;&nbsp;Play</div>
-    <div class="menu-item" id="miConfig">⚙&nbsp;&nbsp;Config</div>
+    <div class="menu-item" id="miPlay">?&nbsp;&nbsp;Play</div>
+    <div class="menu-item" id="miConfig">?&nbsp;&nbsp;Config</div>
     <div class="menu-item" id="miHelp">?&nbsp;&nbsp;Help</div>
     <div class="menu-divider" id="miDivider"></div>
 </div>
 
+<!-- Load YouTube IFrame API � this is the ONLY reliable way to get
+     onReady / onStateChange / seekTo working cross-browser -->
+<script src="https://www.youtube.com/iframe_api"></script>
+
 <script>
+    // ============================================================
+    // Asset arrays
+    // ============================================================
     let IMAGE_URLS  = [];
     let IMAGE_NAMES = [];
     let AUDIO_FILES = [];
@@ -140,11 +144,9 @@
     let correctRegion   = 0, correctImgName = "";
     let correctImgIndex = 0;
     let correctSide     = "", gameActive = false;
-
     let slots   = { single:null, left:null, right:null };
     let slotImg = { single:null, left:null, right:null };
     let slotVis = { single:false, left:false, right:false };
-
     let bigSlot = null, bigImg = null, bigVis = false;
     let hintVisible = false, hintImg = null, hintRegion = 0;
     let nameBelowVisible = false, nameBelowText = "";
@@ -152,169 +154,163 @@
     let currentAudio     = null;
 
     // -------------------------------------------------------
-    // VIDEO  — col 3, rows 2-4 (portrait 1 cell wide × 3 cells tall)
+    // VIDEO � uses real YT IFrame API (loaded via script tag above)
     // -------------------------------------------------------
     const VIDEO_ID  = "X_dvUgqe9DI";
     const VID_START = 4;
     const VID_END   = 10;
 
     const videoWrap     = document.getElementById("videoWrap");
-    const videoIframe   = document.getElementById("videoIframe");
     const closeVideoBtn = document.getElementById("closeVideoBtn");
 
-    let ytReady     = false;   // true once YT fires onReady
-    let loopTimer   = null;    // fallback poll interval
-    let seekPending = false;   // debounce rapid seeks
+    let ytPlayer      = null;   // YT.Player instance
+    let ytAPIReady    = false;  // true when YouTube API fires onYouTubeIframeAPIReady
+    let loopInterval  = null;
+    let seekDebounce  = false;
 
-    // Send a command to the YT IFrame API
-    function ytCmd(func, args) {
-        try {
-            videoIframe.contentWindow.postMessage(
-                JSON.stringify({ event:"command", func, args: args||[] }), "*"
-            );
-        } catch(e) {}
-    }
-
-    // Full YT IFrame API handshake via postMessage
-    function ytListen(func, args) {
-        try {
-            videoIframe.contentWindow.postMessage(
-                JSON.stringify({ event:"listening" }), "*"
-            );
-            videoIframe.contentWindow.postMessage(
-                JSON.stringify({ event:"command", func, args: args||[] }), "*"
-            );
-        } catch(e) {}
-    }
+    // Called automatically by the YT API script when it's loaded
+    window.onYouTubeIframeAPIReady = function() {
+        ytAPIReady = true;
+        console.log("YT API ready");
+    };
 
     function positionVideoWrap() {
-        // Container: col 3 only (x = cellW*2), rows 2-4 (y = cellH*1 to cellH*4)
-        let cx = Math.floor(cellW * 2);      // left edge of col 3
-        let cy = Math.floor(cellH * 1);      // top edge of row 2
-        let cw = Math.floor(cellW);          // 1 cell wide
-        let ch = Math.floor(cellH * 3);      // 3 cells tall — portrait
+        // col 3, rows 2-4 in game coords:
+        //   x = cellW * 2  (left edge of col 3)
+        //   y = cellH * 1  (top edge of row 2)
+        //   w = cellW * 1  (one cell wide)
+        //   h = cellH * 3  (three cells tall)
+        let cx = Math.floor(cellW * 2);
+        let cy = Math.floor(cellH * 1);
+        let cw = Math.floor(cellW);
+        let ch = Math.floor(cellH * 3);
 
         videoWrap.style.left   = cx + "px";
         videoWrap.style.top    = cy + "px";
         videoWrap.style.width  = cw + "px";
         videoWrap.style.height = ch + "px";
 
-        // iframe is 16:9 landscape; Short content is 9:16 pillarboxed inside it.
-        // Set iframe_h = ch so video fills vertically.
-        // iframe_w = ch * (16/9)  — will be wider than cw; centred + clipped.
-        // The 9:16 content column width = iframe_w * (9/16) = ch.
-        // Since ch >> cw the content fills and overflows both sides — clipped cleanly.
-        let fh = ch;
-        let fw = Math.round(ch * 16 / 9);
-        let fx = Math.round((cw - fw) / 2);  // negative → left overhang clipped
-
-        videoIframe.style.width  = fw + "px";
-        videoIframe.style.height = fh + "px";
-        videoIframe.style.left   = fx + "px";
-        videoIframe.style.top    = "0px";
+        // The YT iframe is 16:9. A Short is 9:16 pillarboxed inside it.
+        // We set iframe height = ch, width = ch*(16/9), centered.
+        // Content column = iframe_w * (9/16) = ch � fills height perfectly,
+        // overflows left/right where overflow:hidden clips black bars.
+        if (ytPlayer && ytPlayer.getIframe) {
+            let iframe = ytPlayer.getIframe();
+            let fw = Math.round(ch * 16 / 9);
+            let fx = Math.round((cw - fw) / 2);
+            iframe.style.width  = fw + "px";
+            iframe.style.height = ch + "px";
+            iframe.style.position = "absolute";
+            iframe.style.left   = fx + "px";
+            iframe.style.top    = "0px";
+        }
     }
 
     function openVideo() {
         closeMenu();
-        positionVideoWrap();
-        ytReady = false;
 
-        // enablejsapi=1  → allows postMessage API
-        // start=VID_START → begin at t=4
-        // controls=0, rel=0, modestbranding=1 → clean look
-        // playsinline=1 → no fullscreen hijack on iOS
-        // Note: loop=1&playlist=ID is NOT used — we do our own precise loop
-        let src = "https://www.youtube.com/embed/" + VIDEO_ID
-                + "?autoplay=1"
-                + "&start=" + VID_START
-                + "&enablejsapi=1"
-                + "&rel=0"
-                + "&modestbranding=1"
-                + "&controls=0"
-                + "&playsinline=1";
-        videoIframe.src = src;
+        // Must have layout calculated first
+        setupLayout();
+
+        let cx = Math.floor(cellW * 2);
+        let cy = Math.floor(cellH * 1);
+        let cw = Math.floor(cellW);
+        let ch = Math.floor(cellH * 3);
+
+        videoWrap.style.left   = cx + "px";
+        videoWrap.style.top    = cy + "px";
+        videoWrap.style.width  = cw + "px";
+        videoWrap.style.height = ch + "px";
         videoWrap.classList.add("open");
 
-        // Step 1: after iframe loads, register event listeners with YT
-        videoIframe.onload = () => {
-            // Tell YT we want onReady + onStateChange callbacks
-            try {
-                videoIframe.contentWindow.postMessage(
-                    JSON.stringify({
-                        event: "listening"
-                    }), "*"
-                );
-                videoIframe.contentWindow.postMessage(
-                    JSON.stringify({
-                        event: "command",
-                        func:  "addEventListener",
-                        args:  ["onReady"]
-                    }), "*"
-                );
-                videoIframe.contentWindow.postMessage(
-                    JSON.stringify({
-                        event: "command",
-                        func:  "addEventListener",
-                        args:  ["onStateChange"]
-                    }), "*"
-                );
-            } catch(e) {}
+        // iframe sized to fill height, overflow clips pillarbox bars
+        let fw = Math.round(ch * 16 / 9);
+        let fx = Math.round((cw - fw) / 2);
 
-            // Fallback poll: if postMessage API is blocked, still loop via timer
-            if (loopTimer) clearInterval(loopTimer);
-            loopTimer = setInterval(() => {
-                if (!videoWrap.classList.contains("open")) return;
-                ytCmd("getCurrentTime");
-            }, 250);
-        };
+        if (ytPlayer) {
+            // Already created � just seek and play
+            let iframe = ytPlayer.getIframe();
+            iframe.style.width    = fw + "px";
+            iframe.style.height   = ch + "px";
+            iframe.style.position = "absolute";
+            iframe.style.left     = fx + "px";
+            iframe.style.top      = "0px";
+            ytPlayer.seekTo(VID_START, true);
+            ytPlayer.playVideo();
+            startLoopWatcher();
+            return;
+        }
+
+        if (!ytAPIReady) {
+            // API not ready yet � retry in 300ms
+            setTimeout(openVideo, 300);
+            return;
+        }
+
+        // Replace #ytDiv with a real YT.Player iframe
+        // Reset the div in case it was replaced before
+        let ytDiv = document.getElementById("ytDiv");
+        if (!ytDiv) {
+            ytDiv = document.createElement("div");
+            ytDiv.id = "ytDiv";
+            videoWrap.insertBefore(ytDiv, closeVideoBtn);
+        }
+
+        ytPlayer = new YT.Player("ytDiv", {
+            width:  fw,
+            height: ch,
+            videoId: VIDEO_ID,
+            playerVars: {
+                autoplay:        1,
+                start:           VID_START,
+                controls:        0,
+                rel:             0,
+                modestbranding:  1,
+                playsinline:     1,
+                enablejsapi:     1
+            },
+            events: {
+                onReady: function(e) {
+                    // Size the iframe correctly
+                    let iframe = ytPlayer.getIframe();
+                    iframe.style.width    = fw + "px";
+                    iframe.style.height   = ch + "px";
+                    iframe.style.position = "absolute";
+                    iframe.style.left     = fx + "px";
+                    iframe.style.top      = "0px";
+                    e.target.playVideo();
+                    startLoopWatcher();
+                },
+                onStateChange: function(e) {
+                    // State 0 = ended ? loop back
+                    if (e.data === YT.PlayerState.ENDED) {
+                        ytPlayer.seekTo(VID_START, true);
+                        ytPlayer.playVideo();
+                    }
+                }
+            }
+        });
+    }
+
+    function startLoopWatcher() {
+        if (loopInterval) clearInterval(loopInterval);
+        loopInterval = setInterval(() => {
+            if (!videoWrap.classList.contains("open")) return;
+            if (!ytPlayer || typeof ytPlayer.getCurrentTime !== "function") return;
+            let t = ytPlayer.getCurrentTime();
+            if (!seekDebounce && t >= VID_END) {
+                seekDebounce = true;
+                ytPlayer.seekTo(VID_START, true);
+                ytPlayer.playVideo();
+                setTimeout(() => { seekDebounce = false; }, 800);
+            }
+        }, 250);
     }
 
     function closeVideo() {
         videoWrap.classList.remove("open");
-        videoIframe.onload = null;
-        videoIframe.src    = "";
-        ytReady = false;
-        if (loopTimer) { clearInterval(loopTimer); loopTimer = null; }
-    }
-
-    // YT IFrame postMessage handler
-    window.addEventListener("message", ev => {
-        if (!videoWrap.classList.contains("open")) return;
-        let d;
-        try { d = (typeof ev.data === "string") ? JSON.parse(ev.data) : ev.data; }
-        catch(e) { return; }
-        if (!d) return;
-
-        // onReady fires when player is initialised
-        if (d.event === "onReady") {
-            ytReady = true;
-            ytCmd("playVideo");
-            return;
-        }
-
-        // onStateChange: state 0 = ended → seek back and replay
-        if (d.event === "onStateChange") {
-            let state = d.info;
-            if (state === 0) {          // ended
-                seekAndPlay();
-            }
-            return;
-        }
-
-        // getCurrentTime response (from our poll)
-        if (d.info && typeof d.info.currentTime === "number") {
-            if (!seekPending && d.info.currentTime >= VID_END) {
-                seekAndPlay();
-            }
-        }
-    });
-
-    function seekAndPlay() {
-        seekPending = true;
-        ytCmd("seekTo", [VID_START, true]);
-        ytCmd("playVideo");
-        // Debounce: block further seeks for 600 ms
-        setTimeout(() => { seekPending = false; }, 600);
+        if (loopInterval) { clearInterval(loopInterval); loopInterval = null; }
+        if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
     }
 
     closeVideoBtn.addEventListener("pointerup", e => { e.stopPropagation(); closeVideo(); });
@@ -334,7 +330,7 @@
             let el = document.createElement("div");
             el.className = "menu-item menu-set-item" +
                            (i === activeSetIndex ? " active-set" : "");
-            el.textContent = (i === activeSetIndex ? "✓  " : "     ") + set.name;
+            el.textContent = (i === activeSetIndex ? "?  " : "     ") + set.name;
             el.addEventListener("pointerup", e => { e.stopPropagation(); switchSet(i); });
             menuPanel.appendChild(el);
         });
@@ -353,8 +349,8 @@
     menuPanel.addEventListener("pointerup", e => e.stopPropagation());
 
     addMenuAction("miPlay",   () => openVideo());
-    addMenuAction("miConfig", () => { closeMenu(); alert("Config — coming soon"); });
-    addMenuAction("miHelp",   () => { closeMenu(); alert("Help — coming soon"); });
+    addMenuAction("miConfig", () => { closeMenu(); alert("Config � coming soon"); });
+    addMenuAction("miHelp",   () => { closeMenu(); alert("Help � coming soon"); });
 
     function handleDocPointerUp(e) {
         if (menuPanel.classList.contains("open")) { closeMenu(); return; }
