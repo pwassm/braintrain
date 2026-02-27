@@ -54,10 +54,8 @@
         .menu-divider { height: 1px; background: rgba(255,255,255,0.15); margin: 2px 0; }
 
         /*
-         * videoWrap sits inside rotateWrap — shares the canvas rotation.
-         * It covers col 3, rows 2-4: a portrait 1×3 cell rectangle.
-         * overflow:hidden clips the oversized iframe so black bars
-         * are pushed outside the visible area.
+         * videoWrap: col 3, rows 2-4 only (portrait 1×3 cells).
+         * overflow:hidden clips the wider iframe so black side bars vanish.
          */
         #videoWrap {
             display: none;
@@ -119,8 +117,8 @@
     let activeSetIndex = 0;
 
     const GRID_LINES       = 4;
-    const GRID_COLS        = GRID_LINES + 1;   // 5
-    const GRID_ROWS        = GRID_LINES + 1;   // 5
+    const GRID_COLS        = GRID_LINES + 1;
+    const GRID_ROWS        = GRID_LINES + 1;
     const SHOW_SINGLE_MS   = 1000;
     const GAP_BEFORE_PAIR  = 500;
     const CORRECT_FLASH_MS = 1500;
@@ -154,51 +152,78 @@
     let currentAudio     = null;
 
     // -------------------------------------------------------
-    // VIDEO  — col 3, rows 2-4  (portrait 1×3 cell strip)
+    // VIDEO  — col 3, rows 2-4 (portrait 1 cell wide × 3 cells tall)
     // -------------------------------------------------------
-    const VIDEO_ID      = "X_dvUgqe9DI";
-    const VID_START     = 4;
-    const VID_END       = 10;
+    const VIDEO_ID  = "X_dvUgqe9DI";
+    const VID_START = 4;
+    const VID_END   = 10;
 
     const videoWrap     = document.getElementById("videoWrap");
     const videoIframe   = document.getElementById("videoIframe");
     const closeVideoBtn = document.getElementById("closeVideoBtn");
-    let   loopTimer     = null;
+
+    let ytReady     = false;   // true once YT fires onReady
+    let loopTimer   = null;    // fallback poll interval
+    let seekPending = false;   // debounce rapid seeks
+
+    // Send a command to the YT IFrame API
+    function ytCmd(func, args) {
+        try {
+            videoIframe.contentWindow.postMessage(
+                JSON.stringify({ event:"command", func, args: args||[] }), "*"
+            );
+        } catch(e) {}
+    }
+
+    // Full YT IFrame API handshake via postMessage
+    function ytListen(func, args) {
+        try {
+            videoIframe.contentWindow.postMessage(
+                JSON.stringify({ event:"listening" }), "*"
+            );
+            videoIframe.contentWindow.postMessage(
+                JSON.stringify({ event:"command", func, args: args||[] }), "*"
+            );
+        } catch(e) {}
+    }
 
     function positionVideoWrap() {
-        // Container: col 3 = x: cellW*2 → cellW*3, rows 2-4 = y: cellH*1 → cellH*4
-        let cx = Math.floor(cellW * 2);
-        let cy = Math.floor(cellH * 1);
-        let cw = Math.floor(cellW * 1);   // 1 cell wide
-        let ch = Math.floor(cellH * 3);   // 3 cells tall  → portrait
+        // Container: col 3 only (x = cellW*2), rows 2-4 (y = cellH*1 to cellH*4)
+        let cx = Math.floor(cellW * 2);      // left edge of col 3
+        let cy = Math.floor(cellH * 1);      // top edge of row 2
+        let cw = Math.floor(cellW);          // 1 cell wide
+        let ch = Math.floor(cellH * 3);      // 3 cells tall — portrait
 
         videoWrap.style.left   = cx + "px";
         videoWrap.style.top    = cy + "px";
         videoWrap.style.width  = cw + "px";
         videoWrap.style.height = ch + "px";
 
-        // A YouTube Shorts embed is a 9:16 video inside a 16:9 iframe.
-        // The 9:16 content is pillarboxed: content_w = iframe_w * (9/16).
-        // Strategy: set iframe_h = ch (fill container height),
-        //           iframe_w = iframe_h * (16/9)  (correct iframe AR)
-        //           content_w = iframe_w * (9/16) = iframe_h = ch
-        // Since ch >> cw, content_w will be >> cw — iframe is wider
-        // than container, so we center it and overflow:hidden clips sides.
-        // This guarantees no black top/bottom bars and fills height exactly.
-        let fh = ch;                        // iframe fills container height
-        let fw = Math.round(fh * 16 / 9);  // correct 16:9 iframe width
-        let fx = Math.round((cw - fw) / 2); // centre horizontally (negative → clips left/right)
-        let fy = 0;
+        // iframe is 16:9 landscape; Short content is 9:16 pillarboxed inside it.
+        // Set iframe_h = ch so video fills vertically.
+        // iframe_w = ch * (16/9)  — will be wider than cw; centred + clipped.
+        // The 9:16 content column width = iframe_w * (9/16) = ch.
+        // Since ch >> cw the content fills and overflows both sides — clipped cleanly.
+        let fh = ch;
+        let fw = Math.round(ch * 16 / 9);
+        let fx = Math.round((cw - fw) / 2);  // negative → left overhang clipped
 
         videoIframe.style.width  = fw + "px";
         videoIframe.style.height = fh + "px";
         videoIframe.style.left   = fx + "px";
-        videoIframe.style.top    = fy + "px";
+        videoIframe.style.top    = "0px";
     }
 
     function openVideo() {
         closeMenu();
         positionVideoWrap();
+        ytReady = false;
+
+        // enablejsapi=1  → allows postMessage API
+        // start=VID_START → begin at t=4
+        // controls=0, rel=0, modestbranding=1 → clean look
+        // playsinline=1 → no fullscreen hijack on iOS
+        // Note: loop=1&playlist=ID is NOT used — we do our own precise loop
         let src = "https://www.youtube.com/embed/" + VIDEO_ID
                 + "?autoplay=1"
                 + "&start=" + VID_START
@@ -206,48 +231,91 @@
                 + "&rel=0"
                 + "&modestbranding=1"
                 + "&controls=0"
-                + "&playsinline=1"
-                + "&mute=0";
+                + "&playsinline=1";
         videoIframe.src = src;
         videoWrap.classList.add("open");
 
-        // Poll YT every 300 ms; seekTo VID_START when time >= VID_END
-        loopTimer = setInterval(() => {
+        // Step 1: after iframe loads, register event listeners with YT
+        videoIframe.onload = () => {
+            // Tell YT we want onReady + onStateChange callbacks
             try {
                 videoIframe.contentWindow.postMessage(
                     JSON.stringify({
+                        event: "listening"
+                    }), "*"
+                );
+                videoIframe.contentWindow.postMessage(
+                    JSON.stringify({
                         event: "command",
-                        func:  "getCurrentTime",
-                        args:  []
+                        func:  "addEventListener",
+                        args:  ["onReady"]
+                    }), "*"
+                );
+                videoIframe.contentWindow.postMessage(
+                    JSON.stringify({
+                        event: "command",
+                        func:  "addEventListener",
+                        args:  ["onStateChange"]
                     }), "*"
                 );
             } catch(e) {}
-        }, 300);
+
+            // Fallback poll: if postMessage API is blocked, still loop via timer
+            if (loopTimer) clearInterval(loopTimer);
+            loopTimer = setInterval(() => {
+                if (!videoWrap.classList.contains("open")) return;
+                ytCmd("getCurrentTime");
+            }, 250);
+        };
     }
 
     function closeVideo() {
         videoWrap.classList.remove("open");
-        videoIframe.src = "";
+        videoIframe.onload = null;
+        videoIframe.src    = "";
+        ytReady = false;
         if (loopTimer) { clearInterval(loopTimer); loopTimer = null; }
     }
 
+    // YT IFrame postMessage handler
     window.addEventListener("message", ev => {
         if (!videoWrap.classList.contains("open")) return;
-        try {
-            let d = (typeof ev.data === "string") ? JSON.parse(ev.data) : ev.data;
-            if (d && d.info && typeof d.info.currentTime === "number") {
-                if (d.info.currentTime >= VID_END) {
-                    videoIframe.contentWindow.postMessage(
-                        JSON.stringify({
-                            event: "command",
-                            func:  "seekTo",
-                            args:  [VID_START, true]
-                        }), "*"
-                    );
-                }
+        let d;
+        try { d = (typeof ev.data === "string") ? JSON.parse(ev.data) : ev.data; }
+        catch(e) { return; }
+        if (!d) return;
+
+        // onReady fires when player is initialised
+        if (d.event === "onReady") {
+            ytReady = true;
+            ytCmd("playVideo");
+            return;
+        }
+
+        // onStateChange: state 0 = ended → seek back and replay
+        if (d.event === "onStateChange") {
+            let state = d.info;
+            if (state === 0) {          // ended
+                seekAndPlay();
             }
-        } catch(e) {}
+            return;
+        }
+
+        // getCurrentTime response (from our poll)
+        if (d.info && typeof d.info.currentTime === "number") {
+            if (!seekPending && d.info.currentTime >= VID_END) {
+                seekAndPlay();
+            }
+        }
     });
+
+    function seekAndPlay() {
+        seekPending = true;
+        ytCmd("seekTo", [VID_START, true]);
+        ytCmd("playVideo");
+        // Debounce: block further seeks for 600 ms
+        setTimeout(() => { seekPending = false; }, 600);
+    }
 
     closeVideoBtn.addEventListener("pointerup", e => { e.stopPropagation(); closeVideo(); });
 
