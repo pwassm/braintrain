@@ -6,7 +6,7 @@
       "start": 2,
       "end": 12,
       "mute": 0,
-      "islandscape": 0
+      "isLandscape": 0
     },
     {
       "id": "IpBrqPzyLds",
@@ -14,7 +14,7 @@
       "start": 4,
       "end": 38,
       "mute": 0,
-      "islandscape": 1
+      "isLandscape": 1
     },
     {
       "id": "K738pe3dMK0",
@@ -22,7 +22,7 @@
       "start": 4,
       "end": 38,
       "mute": 0,
-      "islandscape": 0
+      "isLandscape": 0
     },
     {
       "id": "-ZiSU3duFVM",
@@ -30,7 +30,7 @@
       "start": 2,
       "end": 12,
       "mute": 1,
-      "islandscape": 0
+      "isLandscape": 0
     }
     
     
