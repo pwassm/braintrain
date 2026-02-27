@@ -6,27 +6,102 @@
     <title>Brain Training</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { overflow: hidden; touch-action: manipulation; }
+        html, body { overflow: hidden; touch-action: manipulation; background: #000; }
         #rotateWrap { position: fixed; top: 0; left: 0; }
         #gameCanvas { display: block; }
+
+        /* ── Hamburger button ── fixed to physical bottom-right always ── */
+        #menuBtn {
+            position: fixed;
+            bottom: 14px;
+            right: 14px;
+            z-index: 999;
+            width: 48px;
+            height: 48px;
+            background: rgba(30,30,30,0.82);
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 10px;
+            touch-action: manipulation;
+        }
+        #menuBtn span {
+            display: block;
+            width: 100%;
+            height: 3px;
+            background: #fff;
+            border-radius: 2px;
+        }
+        #menuBtn.open { background: rgba(30,30,30,0.97); }
+
+        /* ── Drop-up panel ── */
+        #menuPanel {
+            position: fixed;
+            bottom: 70px;
+            right: 14px;
+            z-index: 998;
+            background: rgba(25,25,25,0.96);
+            border-radius: 10px;
+            overflow: hidden;
+            display: none;
+            flex-direction: column;
+            min-width: 180px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+        }
+        #menuPanel.open { display: flex; }
+
+        .menu-item {
+            padding: 13px 18px;
+            color: #fff;
+            font: 15px Arial, sans-serif;
+            cursor: pointer;
+            white-space: nowrap;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .menu-item:last-child { border-bottom: none; }
+        .menu-item:hover, .menu-item:active { background: rgba(255,255,255,0.12); }
+        .menu-item.active-set { color: #6f6; }
+        .menu-divider {
+            height: 1px;
+            background: rgba(255,255,255,0.15);
+            margin: 2px 0;
+        }
     </style>
 </head>
 <body>
+
 <div id="rotateWrap">
     <canvas id="gameCanvas"></canvas>
 </div>
 
+<!-- Hamburger button — lives outside rotateWrap, always physical bottom-right -->
+<button id="menuBtn" aria-label="Menu">
+    <span></span><span></span><span></span>
+</button>
+
+<!-- Drop-up menu panel -->
+<div id="menuPanel">
+    <div class="menu-item" id="miConfig">⚙&nbsp;&nbsp;Config</div>
+    <div class="menu-item" id="miHelp">?&nbsp;&nbsp;Help</div>
+    <div class="menu-divider"></div>
+    <!-- Set items injected here by buildMenuItems() -->
+</div>
+
 <script>
     // ============================================================
-    // Asset arrays — populated dynamically from assets.json
+    // Asset arrays — filled entirely by loadSet(), never hardcoded
     // ============================================================
     let IMAGE_URLS  = [];
     let IMAGE_NAMES = [];
     let AUDIO_FILES = [];
-    let allSets     = [];
+    let allSets        = [];
     let activeSetIndex = 0;
 
-    // ============================================================
     const GRID_LINES       = 4;
     const GRID_COLS        = GRID_LINES + 1;
     const GRID_ROWS        = GRID_LINES + 1;
@@ -37,13 +112,11 @@
     const WRONG_IMG_MS     = 500;
     const IMG_PAD          = 6;
 
-    // Menu button size and position (bottom-right of canvas)
-    const MENU_BTN_SIZE = 44;   // square hit area
-    const MENU_BTN_PAD  = 10;   // inset from canvas edges
-
     let canvas = document.getElementById("gameCanvas");
     let ctx    = canvas.getContext("2d");
     let wrap   = document.getElementById("rotateWrap");
+    let menuBtn   = document.getElementById("menuBtn");
+    let menuPanel = document.getElementById("menuPanel");
 
     let GW, GH, cellW, cellH, imgW, imgH;
     let isPortrait, bgColor;
@@ -62,28 +135,52 @@
     let currentAudio = null;
 
     // -------------------------------------------------------
-    // MENU STATE
+    // MENU (HTML-based, no canvas drawing needed)
     // -------------------------------------------------------
-    let menuOpen = false;
-
-    // Menu items — stubs + dynamic set choices appended at load time
-    // Each: { label, action }
-    const MENU_STUBS = [
-        { label: "⚙  Config",  action: () => alert("Config — coming soon") },
-        { label: "?  Help",    action: () => alert("Help — coming soon") },
-        { label: "────────",   action: null },   // divider
-    ];
-    let menuItems = [];   // built in buildMenuItems()
-
     function buildMenuItems() {
-        menuItems = [...MENU_STUBS];
+        // Remove any previously injected set items
+        document.querySelectorAll(".menu-set-item").forEach(el => el.remove());
+
         allSets.forEach((set, i) => {
-            menuItems.push({
-                label: (i === activeSetIndex ? "✓ " : "   ") + set.name,
-                action: () => switchSet(i)
-            });
+            let el = document.createElement("div");
+            el.className = "menu-item menu-set-item" +
+                           (i === activeSetIndex ? " active-set" : "");
+            el.textContent = (i === activeSetIndex ? "✓  " : "     ") + set.name;
+            el.addEventListener("click", () => switchSet(i));
+            el.addEventListener("touchend", e => { e.preventDefault(); switchSet(i); });
+            menuPanel.appendChild(el);
         });
     }
+
+    function closeMenu() {
+        menuPanel.classList.remove("open");
+        menuBtn.classList.remove("open");
+    }
+
+    menuBtn.addEventListener("click", e => {
+        e.stopPropagation();
+        let isOpen = menuPanel.classList.toggle("open");
+        menuBtn.classList.toggle("open", isOpen);
+    });
+    menuBtn.addEventListener("touchend", e => {
+        e.preventDefault();
+        e.stopPropagation();
+        let isOpen = menuPanel.classList.toggle("open");
+        menuBtn.classList.toggle("open", isOpen);
+    });
+
+    document.getElementById("miConfig").addEventListener("click", () => {
+        closeMenu();
+        alert("Config — coming soon");
+    });
+    document.getElementById("miHelp").addEventListener("click", () => {
+        closeMenu();
+        alert("Help — coming soon");
+    });
+
+    // Tap anywhere on canvas closes menu
+    canvas.addEventListener("click",    () => { if(menuPanel.classList.contains("open")) closeMenu(); });
+    canvas.addEventListener("touchend", () => { if(menuPanel.classList.contains("open")) closeMenu(); });
 
     // -------------------------------------------------------
     // LAYOUT
@@ -153,60 +250,16 @@
     }
 
     function makeBigSlot(img) {
-        let boxX = cellW, boxY = cellH;
-        let boxW = cellW * 3, boxH = cellH * 3;
-        let iw = img.naturalWidth  || img.width  || boxW;
-        let ih = img.naturalHeight || img.height || boxH;
-        let scale = Math.min(boxW / iw, boxH / ih);
-        let dw = Math.floor(iw * scale);
-        let dh = Math.floor(ih * scale);
-        return {
-            x: Math.floor(boxX + (boxW - dw) / 2),
-            y: Math.floor(boxY + (boxH - dh) / 2),
-            w: dw, h: dh
-        };
+        let boxX=cellW, boxY=cellH, boxW=cellW*3, boxH=cellH*3;
+        let iw=img.naturalWidth||img.width||boxW;
+        let ih=img.naturalHeight||img.height||boxH;
+        let scale=Math.min(boxW/iw, boxH/ih);
+        let dw=Math.floor(iw*scale), dh=Math.floor(ih*scale);
+        return { x:Math.floor(boxX+(boxW-dw)/2), y:Math.floor(boxY+(boxH-dh)/2), w:dw, h:dh };
     }
 
     function getLabelZone() {
-        return {
-            cx:    cellW * 2.5,
-            cy:    cellH * 4.5,
-            zoneW: cellW * 3,
-            zoneH: cellH
-        };
-    }
-
-    // -------------------------------------------------------
-    // MENU GEOMETRY
-    // -------------------------------------------------------
-    function menuBtnRect() {
-        // Bottom-right corner of game canvas
-        return {
-            x: GW - MENU_BTN_SIZE - MENU_BTN_PAD,
-            y: GH - MENU_BTN_SIZE - MENU_BTN_PAD,
-            w: MENU_BTN_SIZE,
-            h: MENU_BTN_SIZE
-        };
-    }
-
-    function menuItemRects() {
-        // Drop-UP: items sit above the hamburger button, bottom-aligned
-        const ITEM_H  = Math.max(32, Math.floor(GH / 14));
-        const ITEM_W  = Math.max(160, Math.floor(GW / 4));
-        const ITEM_PAD = 10;
-        let btn = menuBtnRect();
-        let rects = [];
-        let totalH = menuItems.length * ITEM_H;
-        // Bottom of top item aligns with top of button
-        let baseY = btn.y - 6;
-        let x = btn.x + btn.w - ITEM_W;
-        if (x < 4) x = 4;
-        menuItems.forEach((item, i) => {
-            // items[0] is topmost, items[last] is closest to button
-            let y = baseY - totalH + i * ITEM_H;
-            rects.push({ x, y, w: ITEM_W, h: ITEM_H });
-        });
-        return rects;
+        return { cx:cellW*2.5, cy:cellH*4.5, zoneW:cellW*3, zoneH:cellH };
     }
 
     // -------------------------------------------------------
@@ -214,142 +267,65 @@
     // -------------------------------------------------------
     function drawImg(img, r) {
         ctx.save();
-        ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.clip();
-        ctx.drawImage(img, r.x, r.y, r.w, r.h);
+        ctx.beginPath(); ctx.rect(r.x,r.y,r.w,r.h); ctx.clip();
+        ctx.drawImage(img, r.x,r.y,r.w,r.h);
         ctx.restore();
         ctx.strokeStyle="#333"; ctx.lineWidth=2;
-        ctx.strokeRect(r.x, r.y, r.w, r.h);
+        ctx.strokeRect(r.x,r.y,r.w,r.h);
     }
 
     function drawBigImg(img, r) {
-        ctx.drawImage(img, r.x, r.y, r.w, r.h);
+        ctx.drawImage(img, r.x,r.y,r.w,r.h);
         ctx.strokeStyle="#333"; ctx.lineWidth=2;
-        ctx.strokeRect(r.x, r.y, r.w, r.h);
+        ctx.strokeRect(r.x,r.y,r.w,r.h);
     }
 
     function drawLabel(text, cx, cy, bg, fg, fsOverride) {
-        let fs = fsOverride || Math.max(12, Math.floor(Math.min(cellW,cellH)/5));
-        ctx.font = "bold "+fs+"px Arial";
+        let fs=fsOverride||Math.max(12,Math.floor(Math.min(cellW,cellH)/5));
+        ctx.font="bold "+fs+"px Arial";
         let tw=ctx.measureText(text).width, pad=8;
         let bw=tw+pad*2, bh=fs+pad*2;
-        let bx=Math.max(2,Math.min(cx-bw/2, GW-bw-2));
-        let by=Math.max(2,Math.min(cy-bh/2, GH-bh-2));
-        ctx.fillStyle=bg;
-        ctx.beginPath();
+        let bx=Math.max(2,Math.min(cx-bw/2,GW-bw-2));
+        let by=Math.max(2,Math.min(cy-bh/2,GH-bh-2));
+        ctx.fillStyle=bg; ctx.beginPath();
         if(ctx.roundRect) ctx.roundRect(bx,by,bw,bh,5); else ctx.rect(bx,by,bw,bh);
-        ctx.fill();
-        ctx.fillStyle=fg;
-        ctx.fillText(text, bx+pad, by+pad+fs*0.85);
+        ctx.fill(); ctx.fillStyle=fg;
+        ctx.fillText(text,bx+pad,by+pad+fs*0.85);
     }
 
     function drawFittedLabel(text, cx, cy, maxW, maxH, bg, fg) {
-        let pad = 10;
-        let fs = Math.floor(maxH * 0.55);
-        ctx.font = "bold "+fs+"px Arial";
-        while (fs > 8 && ctx.measureText(text).width > maxW - pad*2) {
-            fs--;
-            ctx.font = "bold "+fs+"px Arial";
+        let pad=10, fs=Math.floor(maxH*0.55);
+        ctx.font="bold "+fs+"px Arial";
+        while(fs>8 && ctx.measureText(text).width>maxW-pad*2){
+            fs--; ctx.font="bold "+fs+"px Arial";
         }
-        let tw = ctx.measureText(text).width;
-        let bw = tw + pad*2, bh = fs + pad*2;
-        let bx = Math.max(2, Math.min(cx - bw/2, GW - bw - 2));
-        let by = Math.max(2, Math.min(cy - bh/2, GH - bh - 2));
-        ctx.fillStyle = bg;
-        ctx.beginPath();
+        let tw=ctx.measureText(text).width;
+        let bw=tw+pad*2, bh=fs+pad*2;
+        let bx=Math.max(2,Math.min(cx-bw/2,GW-bw-2));
+        let by=Math.max(2,Math.min(cy-bh/2,GH-bh-2));
+        ctx.fillStyle=bg; ctx.beginPath();
         if(ctx.roundRect) ctx.roundRect(bx,by,bw,bh,6); else ctx.rect(bx,by,bw,bh);
-        ctx.fill();
-        ctx.fillStyle = fg;
-        ctx.fillText(text, bx+pad, by+pad+fs*0.85);
+        ctx.fill(); ctx.fillStyle=fg;
+        ctx.fillText(text,bx+pad,by+pad+fs*0.85);
     }
 
     function drawFeedback(text) {
         let fs=Math.max(24,Math.floor(GH/5));
         ctx.font="bold "+fs+"px Arial";
-        let lines=text.split("\n");
-        let maxW=0;
+        let lines=text.split("\n"), maxW=0;
         lines.forEach(l=>{let m=ctx.measureText(l).width;if(m>maxW)maxW=m;});
-        let pad=24, bw=maxW+pad*2, bh=(fs+10)*lines.length+pad*2;
-        let bx=GW/2-bw/2, by=GH/2-bh/2;
-        ctx.fillStyle="rgba(255,60,60,0.97)";
-        ctx.beginPath();
+        let pad=24,bw=maxW+pad*2,bh=(fs+10)*lines.length+pad*2;
+        let bx=GW/2-bw/2,by=GH/2-bh/2;
+        ctx.fillStyle="rgba(255,60,60,0.97)"; ctx.beginPath();
         if(ctx.roundRect) ctx.roundRect(bx,by,bw,bh,10); else ctx.rect(bx,by,bw,bh);
-        ctx.fill();
-        ctx.fillStyle="#fff";
-        lines.forEach((l,i)=>{
-            ctx.fillText(l, GW/2-ctx.measureText(l).width/2,
-                         by+pad+fs*0.85+i*(fs+10));
-        });
-    }
-
-    // Draw 3-line hamburger icon inside a rounded button
-    function drawHamburger() {
-        let b = menuBtnRect();
-        // Button background
-        ctx.fillStyle = menuOpen
-            ? "rgba(40,40,40,0.92)"
-            : "rgba(40,40,40,0.65)";
-        ctx.beginPath();
-        if(ctx.roundRect) ctx.roundRect(b.x,b.y,b.w,b.h,8);
-        else ctx.rect(b.x,b.y,b.w,b.h);
-        ctx.fill();
-
-        // 3 lines
-        ctx.strokeStyle = "#fff";
-        ctx.lineWidth   = 3;
-        ctx.lineCap     = "round";
-        let lw  = b.w * 0.55;
-        let lx  = b.x + (b.w - lw) / 2;
-        let gap = b.h * 0.22;
-        let cy  = b.y + b.h / 2;
-        [-1, 0, 1].forEach(offset => {
-            let ly = cy + offset * gap;
-            ctx.beginPath();
-            ctx.moveTo(lx, ly);
-            ctx.lineTo(lx + lw, ly);
-            ctx.stroke();
-        });
-    }
-
-    // Draw drop-up menu panel
-    function drawMenu() {
-        if (!menuOpen) return;
-        let rects = menuItemRects();
-        const ITEM_H  = rects[0] ? rects[0].h : 36;
-        const fs      = Math.max(12, Math.floor(ITEM_H * 0.45));
-
-        rects.forEach((r, i) => {
-            let item = menuItems[i];
-            let isDivider = (item.action === null);
-
-            if (isDivider) {
-                ctx.strokeStyle = "rgba(200,200,200,0.5)";
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(r.x + 8, r.y + r.h/2);
-                ctx.lineTo(r.x + r.w - 8, r.y + r.h/2);
-                ctx.stroke();
-                return;
-            }
-
-            // Panel background
-            ctx.fillStyle = "rgba(30,30,30,0.93)";
-            ctx.beginPath();
-            if (ctx.roundRect) ctx.roundRect(r.x, r.y, r.w, r.h, 5);
-            else ctx.rect(r.x, r.y, r.w, r.h);
-            ctx.fill();
-
-            // Item text
-            ctx.font = fs + "px Arial";
-            ctx.fillStyle = "#fff";
-            ctx.fillText(item.label, r.x + 14, r.y + r.h * 0.68);
-        });
+        ctx.fill(); ctx.fillStyle="#fff";
+        lines.forEach((l,i)=>ctx.fillText(l,GW/2-ctx.measureText(l).width/2,
+            by+pad+fs*0.85+i*(fs+10)));
     }
 
     function render() {
         ctx.fillStyle=bgColor;
         ctx.fillRect(0,0,GW,GH);
-
-        // Grid lines
         ctx.strokeStyle="#000"; ctx.lineWidth=1;
         for(let i=1;i<=GRID_LINES;i++){
             let x=GW*i/(GRID_LINES+1);
@@ -359,111 +335,92 @@
             let y=GH*i/(GRID_LINES+1);
             ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(GW,y);ctx.stroke();
         }
-
         ["single","left","right"].forEach(k=>{
             if(slotVis[k]&&slotImg[k]&&slots[k]) drawImg(slotImg[k],slots[k]);
         });
-
-        if(bigVis && bigImg && bigSlot) drawBigImg(bigImg, bigSlot);
-
+        if(bigVis&&bigImg&&bigSlot) drawBigImg(bigImg,bigSlot);
         if(labelVisible){
             let c=getCenter(labelRegion);
             drawLabel(labelText,c.x,c.y,"rgba(210,210,210,0.95)","#000");
         }
-
-        if(nameBelowVisible) {
-            let z = getLabelZone();
-            drawFittedLabel(nameBelowText, z.cx, z.cy, z.zoneW, z.zoneH,
-                "rgba(60,180,60,0.97)", "#fff");
+        if(nameBelowVisible){
+            let z=getLabelZone();
+            drawFittedLabel(nameBelowText,z.cx,z.cy,z.zoneW,z.zoneH,
+                "rgba(60,180,60,0.97)","#fff");
         }
-
         if(feedbackVisible) drawFeedback(feedbackText);
-
-        // Always draw hamburger on top
-        drawHamburger();
-        drawMenu();
     }
 
     // -------------------------------------------------------
     // AUDIO
     // -------------------------------------------------------
-    function playAudio(imgIndex) {
-        return new Promise((resolve) => {
-            if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; }
-            let src = AUDIO_FILES[imgIndex];
-            console.log("Playing audio:", src);
-            if (!src) { resolve(); return; }
-            currentAudio = new Audio(src);
-            currentAudio.onended = resolve;
-            currentAudio.onerror = (e) => { console.error("Audio error:", src, e); resolve(); };
-            currentAudio.play().catch((e) => { console.error("Play blocked:", src, e); resolve(); });
+    function playAudio(idx) {
+        return new Promise(resolve=>{
+            if(currentAudio){currentAudio.pause();currentAudio.currentTime=0;}
+            let src=AUDIO_FILES[idx];
+            if(!src){resolve();return;}
+            currentAudio=new Audio(src);
+            currentAudio.onended=resolve;
+            currentAudio.onerror=resolve;
+            currentAudio.play().catch(resolve);
         });
     }
 
-    function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
-    function rnd(n)   { return Math.floor(Math.random()*n); }
+    function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+    function rnd(n){return Math.floor(Math.random()*n);}
 
     // -------------------------------------------------------
-    // ASSET LOADING
+    // ASSET LOADING  — only one set loaded at a time
     // -------------------------------------------------------
-    function preloadImages(cb) {
-        if (IMAGE_URLS.length === 0) { cb(); return; }
-        loadedImages = new Array(IMAGE_URLS.length);
-        let n = 0;
-        IMAGE_URLS.forEach((url, i) => {
-            let img = new Image();
-            img.onload = img.onerror = () => { if(++n === IMAGE_URLS.length) cb(); };
-            img.src = url;
-            loadedImages[i] = img;
+    function preloadImages(cb){
+        if(!IMAGE_URLS.length){cb();return;}
+        loadedImages=new Array(IMAGE_URLS.length);
+        let n=0;
+        IMAGE_URLS.forEach((url,i)=>{
+            let img=new Image();
+            img.onload=img.onerror=()=>{if(++n===IMAGE_URLS.length)cb();};
+            img.src=url; loadedImages[i]=img;
         });
     }
 
-    function loadSet(set, cb) {
-        IMAGE_URLS  = [];
-        IMAGE_NAMES = [];
-        AUDIO_FILES = [];
+    function loadSet(set, cb){
+        // Completely replace arrays — never append
+        IMAGE_URLS  = set.items.map(it=>`${set.folder}/${it.base}.jpg`);
+        IMAGE_NAMES = set.items.map(it=>it.label);
+        AUDIO_FILES = set.items.map(it=>`${set.folder}/${it.base}.mp3`);
         loadedImages = [];
-        set.items.forEach(item => {
-            IMAGE_URLS.push( `${set.folder}/${item.base}.jpg`);
-            IMAGE_NAMES.push(item.label);
-            AUDIO_FILES.push(`${set.folder}/${item.base}.mp3`);
-        });
+        console.log("Loading set:", set.name, IMAGE_URLS);
         preloadImages(cb);
     }
 
-    function switchSet(index) {
-        menuOpen = false;
-        if (index === activeSetIndex) { render(); return; }
-        activeSetIndex = index;
-        gameActive = false;
+    function switchSet(i){
+        closeMenu();
+        if(i===activeSetIndex) return;
+        activeSetIndex=i;
+        gameActive=false;
         buildMenuItems();
-        loadSet(allSets[activeSetIndex], () => {
-            setupLayout(); render(); phaseOne();
-        });
+        loadSet(allSets[i], ()=>{ setupLayout(); render(); phaseOne(); });
     }
 
     // -------------------------------------------------------
-    // GAME PHASES
+    // GAME
     // -------------------------------------------------------
-    async function phaseOne() {
+    async function phaseOne(){
         gameActive=false; clickPhase=0;
         setupLayout();
-        bigVis=false; bigImg=null; bigSlot=null;
-        nameBelowVisible=false;
+        bigVis=false; bigImg=null; bigSlot=null; nameBelowVisible=false;
 
         let i1=rnd(IMAGE_URLS.length), i2=rnd(IMAGE_URLS.length);
         while(i2===i1) i2=rnd(IMAGE_URLS.length);
 
-        correctImgIndex = i1;
-        correctImgName  = IMAGE_NAMES[i1];
-        correctRegion   = Math.floor(Math.random()*GRID_ROWS*GRID_COLS)+1;
+        correctImgIndex=i1; correctImgName=IMAGE_NAMES[i1];
+        correctRegion=Math.floor(Math.random()*GRID_ROWS*GRID_COLS)+1;
 
         slots.single=makeSlot(centerIdx); slotImg.single=loadedImages[i1];
         slotVis.single=true; slotVis.left=slotVis.right=false;
         labelText=correctImgName; labelRegion=correctRegion;
         labelVisible=true; feedbackVisible=false;
-        render();
-        await sleep(SHOW_SINGLE_MS);
+        render(); await sleep(SHOW_SINGLE_MS);
 
         slotVis.single=false; labelVisible=false; render();
         await sleep(GAP_BEFORE_PAIR);
@@ -480,63 +437,24 @@
         render(); clickPhase=1; gameActive=true;
     }
 
-    async function handleCorrectLocation() {
+    async function handleCorrectLocation(){
         slotVis.left=false; slotVis.right=false;
-        let img = loadedImages[correctImgIndex];
-        bigSlot = makeBigSlot(img);
-        bigImg  = img; bigVis = true;
-        nameBelowText = correctImgName; nameBelowVisible = true;
+        let img=loadedImages[correctImgIndex];
+        bigSlot=makeBigSlot(img); bigImg=img; bigVis=true;
+        nameBelowText=correctImgName; nameBelowVisible=true;
         render();
         await playAudio(correctImgIndex);
         await sleep(CORRECT_FLASH_MS);
         bigVis=false; nameBelowVisible=false;
-        render();
-        await sleep(300);
-        phaseOne();
+        render(); await sleep(300); phaseOne();
     }
 
-    function hitTest(gx,gy,r){
-        return r&&gx>=r.x&&gx<=r.x+r.w&&gy>=r.y&&gy<=r.y+r.h;
-    }
+    function hitTest(gx,gy,r){return r&&gx>=r.x&&gx<=r.x+r.w&&gy>=r.y&&gy<=r.y+r.h;}
 
-    // -------------------------------------------------------
-    // TAP / CLICK HANDLING
-    // -------------------------------------------------------
-    function handleTap(px, py) {
-        let g  = toGame(px, py);
-        let gx = g.x, gy = g.y;
-
-        // ---- Hamburger button ----
-        let btn = menuBtnRect();
-        if (gx>=btn.x && gx<=btn.x+btn.w && gy>=btn.y && gy<=btn.y+btn.h) {
-            menuOpen = !menuOpen;
-            render();
-            return;
-        }
-
-        // ---- Menu items (when open) ----
-        if (menuOpen) {
-            let rects = menuItemRects();
-            for (let i = 0; i < rects.length; i++) {
-                let r = rects[i];
-                if (gx>=r.x && gx<=r.x+r.w && gy>=r.y && gy<=r.y+r.h) {
-                    let item = menuItems[i];
-                    menuOpen = false;
-                    if (item.action) item.action();
-                    else render();
-                    return;
-                }
-            }
-            // Tap outside menu = close it
-            menuOpen = false;
-            render();
-            return;
-        }
-
-        // ---- Game taps ----
-        if (!gameActive) return;
-
-        if (clickPhase===1) {
+    function handleTap(px,py){
+        if(!gameActive) return;
+        let g=toGame(px,py), gx=g.x, gy=g.y;
+        if(clickPhase===1){
             let hl=hitTest(gx,gy,slots.left), hr=hitTest(gx,gy,slots.right);
             if(!hl&&!hr) return;
             gameActive=false;
@@ -544,16 +462,12 @@
             if(side!==correctSide){
                 slotVis.left=slotVis.right=false;
                 feedbackText="WRONG\nIMAGE"; feedbackVisible=true; render();
-                sleep(WRONG_IMG_MS).then(()=>{
-                    feedbackVisible=false; render(); sleep(300).then(phaseOne);
-                });
+                sleep(WRONG_IMG_MS).then(()=>{feedbackVisible=false;render();sleep(300).then(phaseOne);});
             } else {
-                if(side==="left") slotVis.right=false;
-                else              slotVis.left=false;
+                if(side==="left") slotVis.right=false; else slotVis.left=false;
                 render(); clickPhase=2; gameActive=true;
             }
-        }
-        else if(clickPhase===2){
+        } else if(clickPhase===2){
             gameActive=false;
             let region=getRegion(gx,gy);
             if(region===correctRegion){
@@ -561,9 +475,7 @@
             } else {
                 slotVis.left=slotVis.right=false;
                 feedbackText="WRONG"; feedbackVisible=true; render();
-                sleep(INCORRECT_MS).then(()=>{
-                    feedbackVisible=false; render(); sleep(300).then(phaseOne);
-                });
+                sleep(INCORRECT_MS).then(()=>{feedbackVisible=false;render();sleep(300).then(phaseOne);});
             }
         }
     }
@@ -571,34 +483,30 @@
     document.addEventListener("click",    e=>handleTap(e.clientX,e.clientY));
     document.addEventListener("touchend", e=>{
         e.preventDefault();
-        handleTap(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+        handleTap(e.changedTouches[0].clientX,e.changedTouches[0].clientY);
     },{passive:false});
 
-    window.addEventListener("resize",()=>{ setupLayout(); render(); });
-    window.addEventListener("orientationchange",()=>{
-        setTimeout(()=>{ setupLayout(); render(); },350);
-    });
+    window.addEventListener("resize",()=>{setupLayout();render();});
+    window.addEventListener("orientationchange",()=>{setTimeout(()=>{setupLayout();render();},350);});
 
     // -------------------------------------------------------
-    // STARTUP — fetch assets.json, then load Fish set
+    // STARTUP — fetch assets.json, load set index 0 (Fish)
     // -------------------------------------------------------
     fetch("assets.json")
-        .then(r => r.json())
-        .then(data => {
-            allSets = data.sets;
-            activeSetIndex = 0;           // start with Fish (index 0)
+        .then(r=>r.json())
+        .then(data=>{
+            allSets=data.sets||[];
+            if(!allSets.length) throw new Error("No sets in assets.json");
+            activeSetIndex=0;
             buildMenuItems();
-            loadSet(allSets[activeSetIndex], () => {
-                setupLayout(); render(); phaseOne();
-            });
+            loadSet(allSets[0], ()=>{ setupLayout(); render(); phaseOne(); });
         })
-        .catch(err => {
-            console.error("Could not load assets.json:", err);
-            // Fallback message on canvas
+        .catch(err=>{
+            console.error("assets.json error:",err);
             setupLayout();
-            ctx.fillStyle="#fff"; ctx.fillRect(0,0,GW,GH);
-            ctx.fillStyle="#c00"; ctx.font="bold 20px Arial";
-            ctx.fillText("Error: could not load assets.json", 20, GH/2);
+            ctx.fillStyle="#fff"; ctx.fillRect(0,0,GW||400,GH||300);
+            ctx.fillStyle="#c00"; ctx.font="bold 18px Arial";
+            ctx.fillText("Error: could not load assets.json",20,(GH||300)/2);
         });
 </script>
 </body>

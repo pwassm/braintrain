@@ -15,6 +15,7 @@
       "folder": "birds",
       "items": [
         { "base": "Red-Phalarope",      "label": "Red Phalarope" },
+        { "base": "Marble-Godwit",      "label": "Marble Godwit" },
         { "base": "Red-neck-Phalarope", "label": "Red-necked Phalarope" }
       ]
     }
