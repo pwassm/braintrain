@@ -13,11 +13,12 @@
         #rotateWrap { position: fixed; top: 0; left: 0; }
         #gameCanvas { display: block; }
         
-        /* Debug Timestamp */
+        /* Debug Timestamp - Made much larger and more prominent */
         #debugTimestamp {
-            position: absolute; top: 8px; left: 8px; z-index: 9999;
-            color: #ff0; font: bold 14px monospace; background: rgba(0,0,0,0.6);
-            padding: 4px 8px; border-radius: 4px; pointer-events: none;
+            position: absolute; top: 10px; left: 10px; z-index: 9999;
+            color: #ff0; font: bold 16px monospace; background: rgba(0,0,0,0.8);
+            padding: 6px 12px; border-radius: 6px; border: 2px solid #ff0;
+            pointer-events: none;
         }
 
         /* Menu System */
@@ -74,9 +75,8 @@
             border: 2px solid #333; box-sizing: border-box;
         }
         
-        /* Start with opacity 0 to hide loading spinners and API flashes */
         .yt-game-wrap iframe { 
-            position: absolute; pointer-events: none; opacity: 0; transition: opacity 0.2s;
+            position: absolute; pointer-events: none; opacity: 0; transition: opacity 0.3s ease-in;
         }
         .yt-game-wrap iframe.ready { opacity: 1; }
         
@@ -167,9 +167,6 @@
         setupLayout(); renderGridOnly(); 
         
         slots.single = makeSlot(centerIdx); slots.left = makeSlot(leftIdx); slots.right = makeSlot(rightIdx);
-        
-        let crop = vid.crop || [0, 0, 1, 1];
-        let cw = crop[2] - crop[0]; let ch = crop[3] - crop[1];
 
         function positionYTGameWrap(id, rect) {
             let el = document.getElementById(id);
@@ -181,42 +178,72 @@
         positionYTGameWrap("ytGameCenter", slots.single);
         positionYTGameWrap("ytGameLeft", slots.left);
         positionYTGameWrap("ytGameRight", slots.right);
+        
+        // Hide completely until loaded
+        document.getElementById("ytGameCenter").style.display = "none";
         document.getElementById("ytGameLeft").style.display = "none";
         document.getElementById("ytGameRight").style.display = "none";
 
         ytGameReadyCount = 0;
-        function createFreezePlayer(divId, key, timeToFreeze) {
+        function createFreezePlayer(divId, key, targetTime) {
             if (ytGamePlayers[key]) ytGamePlayers[key].destroy();
+
+            // Load video 0.8 seconds EARLY so we bypass buffering spinners entirely while invisible
+            let PRELOAD_SEC = 0.8;
+            let startTime = Math.max(0, targetTime - PRELOAD_SEC);
+            let hasFired = false;
+
             ytGamePlayers[key] = new YT.Player(divId, {
                 videoId: vid.id,
-                playerVars: { autoplay: 1, controls: 0, disablekb: 1, modestbranding: 1, rel: 0, showinfo: 0, mute: 1, start: timeToFreeze, playsinline: 1 },
+                playerVars: { autoplay: 1, controls: 0, disablekb: 1, modestbranding: 1, rel: 0, showinfo: 0, mute: 1, start: Math.floor(startTime), playsinline: 1 },
                 events: {
                     onReady: (e) => { 
                         e.target.mute(); 
+                        
+                        // Parse Crop
+                        let crop = vid.crop || [0, 0, 1, 1];
+                        let cL = crop[0];
+                        // FORCED SAFE-ZONES: Always push top/bottom beyond 14% so YouTube text is clipped out mathematically
+                        let cT = Math.max(0.14, crop[1]); 
+                        let cR = crop[2];
+                        let cB = Math.min(0.86, crop[3]); 
+                        if (cB <= cT) cB = cT + 0.1; // Safety check
+                        
+                        let cw = cR - cL; let ch = cB - cT;
+
                         let iframe = e.target.getIframe();
-                        // Apply crop logic dynamically based on JSON
                         iframe.style.width = (100 / cw) + "%";
                         iframe.style.height = (100 / ch) + "%";
-                        iframe.style.left = -(crop[0] * 100 / cw) + "%";
-                        iframe.style.top = -(crop[1] * 100 / ch) + "%";
+                        iframe.style.left = -(cL * 100 / cw) + "%";
+                        iframe.style.top = -(cT * 100 / ch) + "%";
+
+                        e.target.seekTo(startTime, true);
                     },
                     onStateChange: (e) => {
-                        if (e.data === YT.PlayerState.PLAYING) {
-                            // Wait a fraction of a second to ensure frame is painted, pause, then unhide
+                        // Wait for PLAYING state, then accurately calculate ms until true TargetTime
+                        if (e.data === YT.PlayerState.PLAYING && !hasFired) {
+                            hasFired = true;
+                            let current = e.target.getCurrentTime();
+                            let waitMs = (targetTime - current) * 1000;
+                            if (waitMs <= 0 || waitMs > 2000) waitMs = PRELOAD_SEC * 1000;
+                            
                             setTimeout(() => {
                                 e.target.pauseVideo();
-                                let iframe = e.target.getIframe();
-                                if (iframe) iframe.classList.add('ready');
-                                ytGameReadyCount++;
-                                if (ytGameReadyCount === 3) startYTGamePhase1(); 
-                            }, 250);
+                                // Wait a tiny bit extra for frame to completely settle before showing
+                                setTimeout(() => {
+                                    let iframe = e.target.getIframe();
+                                    if (iframe) iframe.classList.add('ready');
+                                    ytGameReadyCount++;
+                                    if (ytGameReadyCount === 3) startYTGamePhase1(); 
+                                }, 150);
+                            }, waitMs);
                         }
                     }
                 }
             });
         }
 
-        let timeT = vid.start || 0, timeTdiff = vid.tdiff || 4;
+        let timeT = vid.start || 0, timeTdiff = vid.tdiff !== undefined ? vid.tdiff : 4;
         let timeT4 = timeT + timeTdiff;
         correctSide = Math.random() < 0.5 ? "right" : "left";
         
