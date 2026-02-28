@@ -13,21 +13,16 @@
         #rotateWrap { position: fixed; top: 0; left: 0; }
         #gameCanvas { display: block; }
 
-        /* -- The Wrapper ---------------------------------------
-           Fixed at 48x48 (exactly the button size) so we can 
-           rotate the entire menu system around its center.
-        ------------------------------------------------------- */
+        /* Menu System */
         #menuWrap {
             position: fixed;
             z-index: 999;
             width: 48px; height: 48px;
         }
-        /* Rotates the entire block (button + panel + text) 90deg CW */
         #menuWrap.portrait-mode {
             transform: rotate(90deg);
-            transform-origin: 24px 24px; /* Center of the button */
+            transform-origin: 24px 24px;
         }
-
         #menuBtn {
             position: absolute;
             top: 0; left: 0;
@@ -41,72 +36,63 @@
             touch-action: manipulation;
         }
         #menuBtn.open { background: rgba(30,30,30,0.97); }
-        #menuBtn span {
-            display: block; width: 100%; height: 3px;
-            background: #fff; border-radius: 2px;
-        }
+        #menuBtn span { display: block; width: 100%; height: 3px; background: #fff; border-radius: 2px; }
 
-        /* -- The Panel -----------------------------------------
-           Positioned relative to the 48x48 wrapper.
-           Because the wrapper rotates, "bottom" naturally 
-           becomes "visual UP", and "right" aligns correctly.
-        ------------------------------------------------------- */
         #menuPanel {
             position: absolute;
-            bottom: 54px;
-            right: 0;
+            bottom: 54px; right: 0;
             z-index: 998;
             background: rgba(25,25,25,0.96);
             border-radius: 10px;
-            overflow: hidden;
-            display: none;
-            flex-direction: column;
-            min-width: 200px;
+            overflow-y: auto; max-height: 80vh; 
+            display: none; flex-direction: column; min-width: 200px;
             box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+            scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.3) transparent;
         }
+        #menuPanel::-webkit-scrollbar { width: 6px; }
+        #menuPanel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 3px; }
         #menuPanel.open { display: flex; }
 
         .menu-item {
-            padding: 13px 18px; color: #fff;
-            font: 15px Arial, sans-serif;
-            cursor: pointer; white-space: nowrap;
-            border-bottom: 1px solid rgba(255,255,255,0.08);
+            padding: 13px 18px; color: #fff; font: 15px Arial, sans-serif;
+            cursor: pointer; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,0.08); flex-shrink: 0;
         }
         .menu-item:last-child { border-bottom: none; }
         .menu-item:hover, .menu-item:active { background: rgba(255,255,255,0.12); }
         .menu-item.active-set { color: #6f6; }
-        .menu-divider { height: 1px; background: rgba(255,255,255,0.15); margin: 2px 0; }
+        .menu-divider { height: 1px; background: rgba(255,255,255,0.15); margin: 2px 0; flex-shrink: 0; }
 
         .video-sub {
-            padding: 10px 18px 10px 30px;
-            color: #8ef;
-            font: 14px Arial, sans-serif;
-            cursor: pointer; white-space: nowrap;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-            display: none;
+            padding: 10px 18px 10px 30px; color: #8ef; font: 14px Arial, sans-serif;
+            cursor: pointer; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,0.05); display: none; flex-shrink: 0;
         }
         .video-sub.visible { display: block; }
         .video-sub:hover, .video-sub:active { background: rgba(100,200,255,0.1); }
 
-        #videoWrap {
-            display: none;
-            position: absolute;
-            z-index: 10;
-            overflow: hidden;
-            background: transparent;
+        .ytimg-sub {
+            padding: 10px 18px 10px 30px; color: #f88; font: 14px Arial, sans-serif;
+            cursor: pointer; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,0.05); display: none; flex-shrink: 0;
         }
+        .ytimg-sub.visible { display: block; }
+        .ytimg-sub:hover, .ytimg-sub:active { background: rgba(255,100,100,0.1); }
+
+        /* Video Play Wrapper */
+        #videoWrap { display: none; position: absolute; z-index: 10; overflow: hidden; background: transparent; }
         #videoWrap.open { display: block; }
-        #ytDiv { position: absolute; top: 0; left: 0; }
+        #ytDiv { position: absolute; top: 0; left: 0; pointer-events: auto;}
+
+        /* YTasImage Game Wrappers */
+        .yt-game-wrap { display: none; position: absolute; z-index: 10; overflow: hidden; background: #000; }
+        .yt-game-wrap iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;}
+        
+        /* The invisible overlays that catch our click/tap events over the iframes */
+        .yt-hitbox { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 12; cursor: pointer; }
 
         #closeVideoBtn {
-            position: absolute;
-            top: 4px; right: 4px; z-index: 20;
-            background: rgba(20,20,20,0.85);
-            color: #fff; border: none; border-radius: 6px;
-            font-size: 16px; width: 28px; height: 28px;
-            cursor: pointer;
-            display: flex; align-items: center; justify-content: center;
-            touch-action: manipulation;
+            position: absolute; top: 4px; right: 4px; z-index: 20;
+            background: rgba(20,20,20,0.85); color: #fff; border: none; border-radius: 6px;
+            font-size: 16px; width: 28px; height: 28px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; touch-action: manipulation;
         }
     </style>
 </head>
@@ -114,15 +100,24 @@
 
 <div id="rotateWrap">
     <canvas id="gameCanvas"></canvas>
+    
+    <!-- For playing video mode -->
     <div id="videoWrap">
         <div id="ytDiv"></div>
         <button id="closeVideoBtn" aria-label="Close">X</button>
     </div>
+
+    <!-- For YTasImage game mode -->
+    <div id="ytGameCenter" class="yt-game-wrap"><div id="ytPlayerCenter"></div></div>
+    <div id="ytGameLeft" class="yt-game-wrap"><div id="ytPlayerLeft"></div><div class="yt-hitbox" id="ytHitLeft"></div></div>
+    <div id="ytGameRight" class="yt-game-wrap"><div id="ytPlayerRight"></div><div class="yt-hitbox" id="ytHitRight"></div></div>
 </div>
 
 <div id="menuWrap">
     <div id="menuPanel">
-        <div class="menu-item" id="miPlay">Play</div>
+        <div class="menu-item" id="miPlay">Play Video</div>
+        <div class="menu-divider"></div>
+        <div class="menu-item" id="miYTasImage">YT as Image Game</div>
         <div class="menu-divider"></div>
         <div class="menu-item" id="miConfig">Config</div>
         <div class="menu-item" id="miHelp">Help</div>
@@ -176,179 +171,279 @@
     let feedbackVisible  = false, feedbackText  = "";
     let currentAudio     = null;
 
-    // -------------------------------------------------------
-    // VIDEO
-    // -------------------------------------------------------
-    const videoWrap     = document.getElementById("videoWrap");
-    const closeVideoBtn = document.getElementById("closeVideoBtn");
+    // YT GAME MODE STATE
+    let isYTGameMode = false;
+    let ytGameVideo  = null;
+    let ytGamePlayers = { center: null, left: null, right: null };
+    let ytGameReadyCount = 0;
 
-    let ytPlayer     = null;
-    let ytAPIReady   = false;
-    let loopInterval = null;
-    let seekDebounce = false;
-    let currentVideo = null;
-    let videoOpen    = false;
+    // -------------------------------------------------------
+    // MENU EXPANSION
+    // -------------------------------------------------------
     let playExpanded = false;
+    let ytimgExpanded = false;
 
-    window.onYouTubeIframeAPIReady = function() { ytAPIReady = true; };
-
-    function buildVideoMenu() {
+    function buildVideoMenus() {
         document.querySelectorAll(".video-sub").forEach(el => el.remove());
-        let anchor = document.getElementById("miPlay");
+        document.querySelectorAll(".ytimg-sub").forEach(el => el.remove());
+
+        let anchorPlay = document.getElementById("miPlay");
         allVideos.forEach((vid, i) => {
             let el = document.createElement("div");
             el.className = "video-sub";
             el.textContent = "  > " + (vid.label || "Video " + (i+1));
-            el.addEventListener("pointerup", e => {
-                e.stopPropagation();
-                collapsePlay();
-                closeMenu();
-                openVideo(vid);
-            });
-            anchor.parentNode.insertBefore(el, anchor.nextSibling);
-            anchor = el;
+            el.addEventListener("pointerup", e => { e.stopPropagation(); collapseAllMenus(); closeMenu(); openVideo(vid); });
+            anchorPlay.parentNode.insertBefore(el, anchorPlay.nextSibling);
+            anchorPlay = el;
+        });
+
+        let anchorYT = document.getElementById("miYTasImage");
+        allVideos.forEach((vid, i) => {
+            let el = document.createElement("div");
+            el.className = "ytimg-sub";
+            el.textContent = "  > " + (vid.label || "Video " + (i+1));
+            el.addEventListener("pointerup", e => { e.stopPropagation(); collapseAllMenus(); closeMenu(); startYTGame(vid); });
+            anchorYT.parentNode.insertBefore(el, anchorYT.nextSibling);
+            anchorYT = el;
         });
     }
 
-    function expandPlay() {
-        playExpanded = true;
-        document.querySelectorAll(".video-sub").forEach(el => el.classList.add("visible"));
-    }
-    function collapsePlay() {
-        playExpanded = false;
+    function collapseAllMenus() {
+        playExpanded = false; ytimgExpanded = false;
         document.querySelectorAll(".video-sub").forEach(el => el.classList.remove("visible"));
+        document.querySelectorAll(".ytimg-sub").forEach(el => el.classList.remove("visible"));
     }
-    function togglePlay() { if (playExpanded) collapsePlay(); else expandPlay(); }
+
+    document.getElementById("miPlay").addEventListener("pointerup", e => {
+        e.stopPropagation(); 
+        if (playExpanded) collapseAllMenus(); else { collapseAllMenus(); playExpanded = true; document.querySelectorAll(".video-sub").forEach(el => el.classList.add("visible")); menuPanel.scrollTop = 0; }
+    });
+
+    document.getElementById("miYTasImage").addEventListener("pointerup", e => {
+        e.stopPropagation(); 
+        if (ytimgExpanded) collapseAllMenus(); else { collapseAllMenus(); ytimgExpanded = true; document.querySelectorAll(".ytimg-sub").forEach(el => el.classList.add("visible")); menuPanel.scrollTop = 0; }
+    });
+
+
+    // -------------------------------------------------------
+    // YOUTUBE API INIT
+    // -------------------------------------------------------
+    let ytAPIReady = false;
+    window.onYouTubeIframeAPIReady = function() { ytAPIReady = true; };
+
+    // -------------------------------------------------------
+    // YT AS IMAGE GAMEPLAY
+    // -------------------------------------------------------
+    function startYTGame(vid) {
+        if (!ytAPIReady) { setTimeout(() => startYTGame(vid), 300); return; }
+        
+        // Clean up normal game or playing video
+        if (videoOpen) closeVideo();
+        isYTGameMode = true;
+        ytGameVideo = vid;
+        gameActive = false;
+        clickPhase = 0;
+        
+        setupLayout();
+        renderGridOnly(); // Wipe canvas
+        
+        // Calculate the standard image slots (same coordinates as JPG images)
+        slots.single = makeSlot(centerIdx);
+        slots.left = makeSlot(leftIdx);
+        slots.right = makeSlot(rightIdx);
+
+        // Position the iframes directly over the calculated slots
+        function positionYTGameWrap(id, rect) {
+            let el = document.getElementById(id);
+            el.style.left = rect.x + "px"; el.style.top = rect.y + "px";
+            el.style.width = rect.w + "px"; el.style.height = rect.h + "px";
+            el.style.display = "block";
+            // scale up slightly to hide youtube black bars inside the square slot
+            let iframe = el.querySelector('iframe');
+            if (iframe) {
+                iframe.style.width = "105%"; iframe.style.height = "105%";
+                iframe.style.left = "-2.5%"; iframe.style.top = "-2.5%";
+            }
+        }
+        
+        positionYTGameWrap("ytGameCenter", slots.single);
+        positionYTGameWrap("ytGameLeft", slots.left);
+        positionYTGameWrap("ytGameRight", slots.right);
+
+        // Hide left/right wrappers initially for phase 1
+        document.getElementById("ytGameLeft").style.display = "none";
+        document.getElementById("ytGameRight").style.display = "none";
+
+        ytGameReadyCount = 0;
+
+        function createFreezePlayer(divId, key, timeToFreeze) {
+            if (ytGamePlayers[key]) ytGamePlayers[key].destroy();
+            ytGamePlayers[key] = new YT.Player(divId, {
+                videoId: vid.id,
+                playerVars: { autoplay: 1, controls: 0, disablekb: 1, modestbranding: 1, rel: 0, showinfo: 0, mute: 1, start: timeToFreeze },
+                events: {
+                    onReady: (e) => { e.target.mute(); },
+                    onStateChange: (e) => {
+                        // When video starts playing, immediately pause to create a freeze frame
+                        if (e.data === YT.PlayerState.PLAYING) {
+                            e.target.pauseVideo();
+                            ytGameReadyCount++;
+                            if (ytGameReadyCount === 3) startYTGamePhase1(); // all 3 ready
+                        }
+                    }
+                }
+            });
+        }
+
+        let timeT = vid.start || 0;
+        let timeT4 = timeT + 4;
+        
+        correctSide = Math.random() < 0.5 ? "right" : "left";
+        
+        // Re-inject divs because destroy() removes them
+        document.getElementById("ytGameCenter").innerHTML = '<div id="ytPlayerCenter"></div>';
+        document.getElementById("ytGameLeft").innerHTML = '<div id="ytPlayerLeft"></div><div class="yt-hitbox" id="ytHitLeft"></div>';
+        document.getElementById("ytGameRight").innerHTML = '<div id="ytPlayerRight"></div><div class="yt-hitbox" id="ytHitRight"></div>';
+
+        // Load center player (Time T)
+        createFreezePlayer("ytPlayerCenter", "center", timeT);
+        
+        // Load side players (One is Time T, the other is T+4)
+        if (correctSide === "right") {
+            createFreezePlayer("ytPlayerRight", "right", timeT);
+            createFreezePlayer("ytPlayerLeft", "left", timeT4);
+        } else {
+            createFreezePlayer("ytPlayerLeft", "left", timeT);
+            createFreezePlayer("ytPlayerRight", "right", timeT4);
+        }
+        
+        setupYTGameHitboxes();
+    }
+
+    async function startYTGamePhase1() {
+        document.getElementById("ytGameCenter").style.display = "block";
+        await sleep(SHOW_SINGLE_MS);
+        
+        document.getElementById("ytGameCenter").style.display = "none";
+        await sleep(GAP_BEFORE_PAIR);
+        
+        document.getElementById("ytGameLeft").style.display = "block";
+        document.getElementById("ytGameRight").style.display = "block";
+        clickPhase = 1;
+        gameActive = true;
+    }
+
+    function setupYTGameHitboxes() {
+        document.getElementById("ytHitLeft").onpointerup = (e) => handleYTTap("left", e);
+        document.getElementById("ytHitRight").onpointerup = (e) => handleYTTap("right", e);
+    }
+
+    function handleYTTap(side, e) {
+        if (!gameActive || clickPhase !== 1) return;
+        e.stopPropagation();
+        gameActive = false;
+        
+        if (side !== correctSide) {
+            document.getElementById("ytGameLeft").style.display = "none";
+            document.getElementById("ytGameRight").style.display = "none";
+            feedbackText = "WRONG\\nFRAME"; feedbackVisible = true; renderGridOnly(); drawFeedback(feedbackText);
+            sleep(WRONG_IMG_MS).then(() => { 
+                feedbackVisible = false; renderGridOnly(); sleep(300).then(() => startYTGame(ytGameVideo)); 
+            });
+        } else {
+            // Correct - show center again as "success"
+            document.getElementById("ytGameLeft").style.display = "none";
+            document.getElementById("ytGameRight").style.display = "none";
+            document.getElementById("ytGameCenter").style.display = "block";
+            sleep(CORRECT_FLASH_MS).then(() => { 
+                document.getElementById("ytGameCenter").style.display = "none";
+                sleep(300).then(() => startYTGame(ytGameVideo)); 
+            });
+        }
+    }
+
+    function stopYTGameMode() {
+        isYTGameMode = false;
+        document.getElementById("ytGameCenter").style.display = "none";
+        document.getElementById("ytGameLeft").style.display = "none";
+        document.getElementById("ytGameRight").style.display = "none";
+        if (ytGamePlayers.center) { ytGamePlayers.center.destroy(); ytGamePlayers.center = null; }
+        if (ytGamePlayers.left) { ytGamePlayers.left.destroy(); ytGamePlayers.left = null; }
+        if (ytGamePlayers.right) { ytGamePlayers.right.destroy(); ytGamePlayers.right = null; }
+    }
+
+
+    // -------------------------------------------------------
+    // STANDARD VIDEO PLAYBACK 
+    // -------------------------------------------------------
+    const videoWrap     = document.getElementById("videoWrap");
+    const closeVideoBtn = document.getElementById("closeVideoBtn");
+    let ytPlayer = null, loopInterval = null, seekDebounce = false, currentVideo = null, videoOpen = false;
 
     function positionVideoWrap() {
         if (!currentVideo) return { ifW: 0, ifH: 0, ifX: 0, ifY: 0 };
-        
-        // Manual check for "isLandscape": 1 or true
         let isL = (currentVideo.isLandscape == 1 || currentVideo.isLandscape === true);
-        
         let wrapX, wrapY, wrapW, wrapH, ifW, ifH, ifX, ifY;
 
         if (isL) {
-            // Landscape: Center inside 3x3 grid (cols 2,3,4; rows 2,3,4)
-            let boxX = cellW * 1;
-            let boxY = cellH * 1;
-            let boxW = cellW * 3;
-            let boxH = cellH * 3;
-            
-            // Fit 16:9 ratio perfectly inside the 3x3 box
+            let boxX = cellW * 1, boxY = cellH * 1, boxW = cellW * 3, boxH = cellH * 3;
             let scale = Math.min(boxW / 16, boxH / 9);
-            wrapW = Math.floor(16 * scale);
-            wrapH = Math.floor(9 * scale);
-            wrapX = Math.floor(boxX + (boxW - wrapW) / 2);
-            wrapY = Math.floor(boxY + (boxH - wrapH) / 2);
-            
-            ifW = wrapW;
-            ifH = wrapH;
-            ifX = 0;
-            ifY = 0;
+            wrapW = Math.floor(16 * scale); wrapH = Math.floor(9 * scale);
+            wrapX = Math.floor(boxX + (boxW - wrapW) / 2); wrapY = Math.floor(boxY + (boxH - wrapH) / 2);
+            ifW = wrapW; ifH = wrapH; ifX = 0; ifY = 0;
         } else {
-            // Short: 1 block wide, 3 blocks tall (col 3; rows 2,3,4)
-            wrapX = Math.floor(cellW * 2);
-            wrapY = Math.floor(cellH * 1);
-            wrapW = Math.floor(cellW * 1);
-            wrapH = Math.floor(cellH * 3);
-            
-            // Oversize horizontal width to hide YouTube letterboxing
-            ifH = wrapH;
-            ifW = Math.round(ifH * 16 / 9);
-            ifX = Math.round((wrapW - ifW) / 2);
-            ifY = 0;
+            wrapX = Math.floor(cellW * 2); wrapY = Math.floor(cellH * 1);
+            wrapW = Math.floor(cellW * 1); wrapH = Math.floor(cellH * 3);
+            ifH = wrapH; ifW = Math.round(ifH * 16 / 9); ifX = Math.round((wrapW - ifW) / 2); ifY = 0;
         }
 
-        videoWrap.style.left   = wrapX + "px";
-        videoWrap.style.top    = wrapY + "px";
-        videoWrap.style.width  = wrapW + "px";
-        videoWrap.style.height = wrapH + "px";
+        videoWrap.style.left = wrapX + "px"; videoWrap.style.top = wrapY + "px";
+        videoWrap.style.width = wrapW + "px"; videoWrap.style.height = wrapH + "px";
 
         if (ytPlayer && ytPlayer.getIframe) {
             try {
                 let iframe = ytPlayer.getIframe();
-                if (iframe) {
-                    iframe.style.position = "absolute";
-                    iframe.style.width    = ifW + "px";
-                    iframe.style.height   = ifH + "px";
-                    iframe.style.left     = ifX + "px";
-                    iframe.style.top      = ifY + "px";
-                }
+                if (iframe) { iframe.style.position = "absolute"; iframe.style.width = ifW + "px"; iframe.style.height = ifH + "px"; iframe.style.left = ifX + "px"; iframe.style.top = ifY + "px"; }
             } catch(e) {}
         }
-        
         return { ifW, ifH, ifX, ifY };
     }
 
     function openVideo(vid) {
-        currentVideo = vid;
-        videoOpen    = true;
-
-        // Ensure canvas colors/layout are updated BEFORE drawing grid
-        setupLayout();
-        let dims = positionVideoWrap();
-        videoWrap.classList.add("open");
-        renderGridOnly(); 
+        if (isYTGameMode) stopYTGameMode();
+        currentVideo = vid; videoOpen = true; gameActive = false;
+        setupLayout(); let dims = positionVideoWrap(); videoWrap.classList.add("open"); renderGridOnly(); 
 
         if (ytPlayer) {
-            positionVideoWrap();
-            ytPlayer.loadVideoById({ videoId: vid.id, startSeconds: vid.start || 0 });
+            positionVideoWrap(); ytPlayer.loadVideoById({ videoId: vid.id, startSeconds: vid.start || 0 });
             if (vid.mute == 1 || vid.mute === true) ytPlayer.mute(); else ytPlayer.unMute();
-            startLoopWatcher();
-            return;
+            startLoopWatcher(); return;
         }
-
         if (!ytAPIReady) { setTimeout(() => openVideo(vid), 300); return; }
 
         let ytDiv = document.getElementById("ytDiv");
-        if (!ytDiv) {
-            ytDiv = document.createElement("div");
-            ytDiv.id = "ytDiv";
-            videoWrap.insertBefore(ytDiv, closeVideoBtn);
-        }
+        if (!ytDiv) { ytDiv = document.createElement("div"); ytDiv.id = "ytDiv"; videoWrap.insertBefore(ytDiv, closeVideoBtn); }
 
         ytPlayer = new YT.Player("ytDiv", {
-            width:   dims.ifW,
-            height:  dims.ifH,
-            videoId: vid.id,
-            playerVars: {
-                autoplay:       1,
-                start:          vid.start || 0,
-                controls:       0,
-                rel:            0,
-                modestbranding: 1,
-                playsinline:    1,
-                enablejsapi:    1,
-                mute:           (vid.mute == 1 || vid.mute === true) ? 1 : 0
-            },
+            width: dims.ifW, height: dims.ifH, videoId: vid.id,
+            playerVars: { autoplay: 1, start: vid.start || 0, controls: 0, rel: 0, modestbranding: 1, playsinline: 1, enablejsapi: 1, mute: (vid.mute == 1 || vid.mute === true) ? 1 : 0 },
             events: {
-                onReady: function(e) {
-                    positionVideoWrap();
-                    if (vid.mute == 1 || vid.mute === true) e.target.mute();
-                    e.target.playVideo();
-                    startLoopWatcher();
-                },
-                onStateChange: function(e) {
-                    if (e.data === YT.PlayerState.ENDED) doSeekLoop();
-                }
+                onReady: function(e) { positionVideoWrap(); if (vid.mute == 1 || vid.mute === true) e.target.mute(); e.target.playVideo(); startLoopWatcher(); },
+                onStateChange: function(e) { if (e.data === YT.PlayerState.ENDED) doSeekLoop(); }
             }
         });
     }
 
     function doSeekLoop() {
         if (!currentVideo || seekDebounce) return;
-        seekDebounce = true;
-        ytPlayer.seekTo(currentVideo.start || 0, true);
-        ytPlayer.playVideo();
+        seekDebounce = true; ytPlayer.seekTo(currentVideo.start || 0, true); ytPlayer.playVideo();
         setTimeout(() => { seekDebounce = false; }, 800);
     }
 
     function startLoopWatcher() {
         if (loopInterval) clearInterval(loopInterval);
         loopInterval = setInterval(() => {
-            if (!videoOpen) return;
-            if (!ytPlayer || typeof ytPlayer.getCurrentTime !== "function") return;
+            if (!videoOpen || !ytPlayer || typeof ytPlayer.getCurrentTime !== "function") return;
             try {
                 if (!currentVideo || !currentVideo.end) return;
                 let t = ytPlayer.getCurrentTime();
@@ -358,43 +453,30 @@
     }
 
     function closeVideo() {
-        videoOpen = false;
-        videoWrap.classList.remove("open");
+        videoOpen = false; videoWrap.classList.remove("open");
         if (loopInterval) { clearInterval(loopInterval); loopInterval = null; }
         if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
-        currentVideo = null;
-        render();
-        if (clickPhase > 0) gameActive = true;
+        currentVideo = null; render();
+        if (clickPhase > 0 && !isYTGameMode) gameActive = true;
     }
 
     closeVideoBtn.addEventListener("pointerup", e => { e.stopPropagation(); closeVideo(); });
 
     // -------------------------------------------------------
-    // GRID-ONLY RENDER
+    // STANDARD GAME LOGIC
     // -------------------------------------------------------
     function renderGridOnly() {
-        ctx.fillStyle = bgColor;
-        ctx.fillRect(0, 0, GW, GH);
+        ctx.fillStyle = bgColor; ctx.fillRect(0, 0, GW, GH);
         ctx.strokeStyle = "#000"; ctx.lineWidth = 1;
-        for (let i = 1; i <= GRID_LINES; i++) {
-            let x = GW * i / (GRID_LINES + 1);
-            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, GH); ctx.stroke();
-        }
-        for (let i = 1; i <= GRID_LINES; i++) {
-            let y = GH * i / (GRID_LINES + 1);
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(GW, y); ctx.stroke();
-        }
+        for (let i = 1; i <= GRID_LINES; i++) { let x = GW * i / (GRID_LINES + 1); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, GH); ctx.stroke(); }
+        for (let i = 1; i <= GRID_LINES; i++) { let y = GH * i / (GRID_LINES + 1); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(GW, y); ctx.stroke(); }
     }
 
-    // -------------------------------------------------------
-    // MENU
-    // -------------------------------------------------------
     function buildMenuItems() {
         document.querySelectorAll(".menu-set-item").forEach(el => el.remove());
         allSets.forEach((set, i) => {
             let el = document.createElement("div");
-            el.className = "menu-item menu-set-item" +
-                           (i === activeSetIndex ? " active-set" : "");
+            el.className = "menu-item menu-set-item" + (i === activeSetIndex ? " active-set" : "");
             el.textContent = (i === activeSetIndex ? "+ " : "  ") + set.name;
             el.addEventListener("pointerup", e => { e.stopPropagation(); switchSet(i); });
             menuPanel.appendChild(el);
@@ -403,308 +485,124 @@
 
     function updateMenuPosition() {
         let PAD = 14;
-        if (isPortrait) {
-            menuWrap.classList.add("portrait-mode");
-            menuWrap.style.bottom = PAD + "px";
-            menuWrap.style.left   = PAD + "px";
-            menuWrap.style.right  = "auto";
-        } else {
-            menuWrap.classList.remove("portrait-mode");
-            menuWrap.style.bottom = PAD + "px";
-            menuWrap.style.right  = PAD + "px";
-            menuWrap.style.left   = "auto";
-        }
+        if (isPortrait) { menuWrap.classList.add("portrait-mode"); menuWrap.style.bottom = PAD + "px"; menuWrap.style.left = PAD + "px"; menuWrap.style.right = "auto"; }
+        else { menuWrap.classList.remove("portrait-mode"); menuWrap.style.bottom = PAD + "px"; menuWrap.style.right = PAD + "px"; menuWrap.style.left = "auto"; }
     }
 
-    function closeMenu() {
-        collapsePlay();
-        menuPanel.classList.remove("open");
-        menuBtn.classList.remove("open");
-    }
+    function closeMenu() { collapseAllMenus(); menuPanel.classList.remove("open"); menuBtn.classList.remove("open"); }
 
     menuBtn.addEventListener("pointerup", e => {
         e.stopPropagation();
         let isOpen = menuPanel.classList.toggle("open");
         menuBtn.classList.toggle("open", isOpen);
-        if (!isOpen) collapsePlay();
+        if (!isOpen) collapseAllMenus();
     });
     menuPanel.addEventListener("pointerup", e => e.stopPropagation());
 
-    document.getElementById("miPlay").addEventListener("pointerup", e => {
-        e.stopPropagation(); togglePlay();
-    });
-    document.getElementById("miConfig").addEventListener("pointerup", e => {
-        e.stopPropagation(); closeMenu(); alert("Config - coming soon");
-    });
-    document.getElementById("miHelp").addEventListener("pointerup", e => {
-        e.stopPropagation(); closeMenu(); alert("Help - coming soon");
-    });
+    document.getElementById("miConfig").addEventListener("pointerup", e => { e.stopPropagation(); closeMenu(); alert("Config - coming soon"); });
+    document.getElementById("miHelp").addEventListener("pointerup", e => { e.stopPropagation(); closeMenu(); alert("Help - coming soon"); });
 
     function handleDocPointerUp(e) {
         if (menuPanel.classList.contains("open")) { closeMenu(); return; }
+        if (isYTGameMode) return; // YT game uses hitbox divs, not canvas coordinate math
         handleTap(e.clientX, e.clientY);
     }
     document.addEventListener("pointerup", handleDocPointerUp);
 
-    // -------------------------------------------------------
-    // LAYOUT
-    // -------------------------------------------------------
     function setupLayout() {
         let pw = window.innerWidth, ph = window.innerHeight;
-        isPortrait = pw < ph;
-        bgColor = Math.min(pw, ph) < 600 ? "#7ab8e8" : "#ffffff";
-
-        if (isPortrait) {
-            GW = ph; GH = pw;
-            canvas.width  = GW; canvas.height = GH;
-            wrap.style.width  = GW + "px"; wrap.style.height = GH + "px";
-            wrap.style.transformOrigin = "0 0";
-            wrap.style.transform = "rotate(90deg) translateY(-" + pw + "px)";
-        } else {
-            GW = pw; GH = ph;
-            canvas.width  = GW; canvas.height = GH;
-            wrap.style.width  = GW + "px"; wrap.style.height = GH + "px";
-            wrap.style.transformOrigin = "0 0";
-            wrap.style.transform = "none";
-        }
-
-        cellW = GW / GRID_COLS;
-        cellH = GH / GRID_ROWS;
-
+        isPortrait = pw < ph; bgColor = Math.min(pw, ph) < 600 ? "#7ab8e8" : "#ffffff";
+        if (isPortrait) { GW = ph; GH = pw; canvas.width = GW; canvas.height = GH; wrap.style.width = GW + "px"; wrap.style.height = GH + "px"; wrap.style.transformOrigin = "0 0"; wrap.style.transform = "rotate(90deg) translateY(-" + pw + "px)"; }
+        else { GW = pw; GH = ph; canvas.width = GW; canvas.height = GH; wrap.style.width = GW + "px"; wrap.style.height = GH + "px"; wrap.style.transformOrigin = "0 0"; wrap.style.transform = "none"; }
+        cellW = GW / GRID_COLS; cellH = GH / GRID_ROWS;
         let maxW = cellW - IMG_PAD * 2, maxH = cellH - IMG_PAD * 2;
-        if (maxW * 9 / 16 <= maxH) {
-            imgW = Math.floor(maxW); imgH = Math.floor(maxW * 9 / 16);
-        } else {
-            imgH = Math.floor(maxH); imgW = Math.floor(maxH * 16 / 9);
-        }
-
+        if (maxW * 9 / 16 <= maxH) { imgW = Math.floor(maxW); imgH = Math.floor(maxW * 9 / 16); } else { imgH = Math.floor(maxH); imgW = Math.floor(maxH * 16 / 9); }
         updateMenuPosition();
-        if (videoWrap.classList.contains("open")) positionVideoWrap();
+        if (videoOpen) positionVideoWrap();
+        if (isYTGameMode) {
+            slots.single = makeSlot(centerIdx); slots.left = makeSlot(leftIdx); slots.right = makeSlot(rightIdx);
+            ["ytGameCenter", "ytGameLeft", "ytGameRight"].forEach((id, i) => {
+                let r = i===0 ? slots.single : i===1 ? slots.left : slots.right;
+                let el = document.getElementById(id); el.style.left = r.x + "px"; el.style.top = r.y + "px"; el.style.width = r.w + "px"; el.style.height = r.h + "px";
+            });
+        }
     }
 
-    function toGame(px, py) {
-        if (isPortrait) return { x: py, y: window.innerWidth - px };
-        return { x: px, y: py };
-    }
-    function getCenter(idx) {
-        let row = Math.floor((idx - 1) / GRID_COLS) + 1;
-        let col = ((idx - 1) % GRID_COLS) + 1;
-        return { x: (col - 0.5) * cellW, y: (row - 0.5) * cellH };
-    }
-    function getRegion(gx, gy) {
-        let col = Math.floor(gx / cellW) + 1;
-        let row = Math.floor(gy / cellH) + 1;
-        if (col < 1 || col > GRID_COLS || row < 1 || row > GRID_ROWS) return 0;
-        return (row - 1) * GRID_COLS + col;
-    }
+    function toGame(px, py) { if (isPortrait) return { x: py, y: window.innerWidth - px }; return { x: px, y: py }; }
+    function getCenter(idx) { let row = Math.floor((idx - 1) / GRID_COLS) + 1; let col = ((idx - 1) % GRID_COLS) + 1; return { x: (col - 0.5) * cellW, y: (row - 0.5) * cellH }; }
+    function getRegion(gx, gy) { let col = Math.floor(gx / cellW) + 1; let row = Math.floor(gy / cellH) + 1; if (col < 1 || col > GRID_COLS || row < 1 || row > GRID_ROWS) return 0; return (row - 1) * GRID_COLS + col; }
 
     let centerIdx = ((Math.ceil(GRID_ROWS / 2) - 1) * GRID_COLS) + Math.ceil(GRID_COLS / 2);
-    let leftIdx   = centerIdx - 1;
-    let rightIdx  = centerIdx + 1;
+    let leftIdx   = centerIdx - 1, rightIdx  = centerIdx + 1;
 
-    function makeSlot(idx) {
-        let c = getCenter(idx);
-        return { x: Math.floor(c.x - imgW / 2), y: Math.floor(c.y - imgH / 2), w: imgW, h: imgH };
-    }
-    function makeBigSlot(img) {
-        let boxX = cellW, boxY = cellH, boxW = cellW * 3, boxH = cellH * 3;
-        let iw = img.naturalWidth || img.width || boxW;
-        let ih = img.naturalHeight || img.height || boxH;
-        let scale = Math.min(boxW / iw, boxH / ih);
-        let dw = Math.floor(iw * scale), dh = Math.floor(ih * scale);
-        return { x: Math.floor(boxX + (boxW - dw) / 2), y: Math.floor(boxY + (boxH - dh) / 2), w: dw, h: dh };
-    }
-    function getLabelZone() {
-        return { cx: cellW * 2.5, cy: cellH * 4.5, zoneW: cellW * 3, zoneH: cellH };
-    }
+    function makeSlot(idx) { let c = getCenter(idx); return { x: Math.floor(c.x - imgW / 2), y: Math.floor(c.y - imgH / 2), w: imgW, h: imgH }; }
+    function makeBigSlot(img) { let boxX = cellW, boxY = cellH, boxW = cellW * 3, boxH = cellH * 3; let iw = img.naturalWidth || img.width || boxW; let ih = img.naturalHeight || img.height || boxH; let scale = Math.min(boxW / iw, boxH / ih); let dw = Math.floor(iw * scale), dh = Math.floor(ih * scale); return { x: Math.floor(boxX + (boxW - dw) / 2), y: Math.floor(boxY + (boxH - dh) / 2), w: dw, h: dh }; }
+    function getLabelZone() { return { cx: cellW * 2.5, cy: cellH * 4.5, zoneW: cellW * 3, zoneH: cellH }; }
 
-    // -------------------------------------------------------
-    // DRAWING
-    // -------------------------------------------------------
-    function drawImg(img, r) {
-        ctx.save(); ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.clip();
-        ctx.drawImage(img, r.x, r.y, r.w, r.h); ctx.restore();
-        ctx.strokeStyle = "#333"; ctx.lineWidth = 2; ctx.strokeRect(r.x, r.y, r.w, r.h);
-    }
-    function drawBigImg(img, r) {
-        ctx.drawImage(img, r.x, r.y, r.w, r.h);
-        ctx.strokeStyle = "#333"; ctx.lineWidth = 2; ctx.strokeRect(r.x, r.y, r.w, r.h);
-    }
-    function drawHint(img, regionIdx) {
-        let c = getCenter(regionIdx);
-        let tw = Math.floor(imgW * 0.20), th = Math.floor(imgH * 0.20);
-        let tx = Math.floor(c.x - tw / 2), ty = Math.floor(c.y - th / 2);
-        ctx.drawImage(img, tx, ty, tw, th);
-        ctx.strokeStyle = "rgba(0,0,0,0.6)"; ctx.lineWidth = 1; ctx.strokeRect(tx, ty, tw, th);
-    }
-    function drawFittedLabel(text, cx, cy, maxW, maxH, bg, fg) {
-        let pad = 10, fs = Math.floor(maxH * 0.275);
-        ctx.font = "bold " + fs + "px Arial";
-        while (fs > 4 && ctx.measureText(text).width > maxW - pad * 2) {
-            fs--; ctx.font = "bold " + fs + "px Arial";
-        }
-        let tw = ctx.measureText(text).width, bw = tw + pad * 2, bh = fs + pad * 2;
-        let bx = Math.max(2, Math.min(cx - bw / 2, GW - bw - 2));
-        let by = Math.max(2, Math.min(cy - bh / 2, GH - bh - 2));
-        ctx.fillStyle = bg; ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 6); else ctx.rect(bx, by, bw, bh);
-        ctx.fill(); ctx.fillStyle = fg;
-        ctx.fillText(text, bx + pad, by + pad + fs * 0.85);
-    }
-    function drawFeedback(text) {
-        let fs = Math.max(12, Math.floor(GH / 10));
-        ctx.font = "bold " + fs + "px Arial";
-        let lines = text.split("\\n"), maxW = 0;
-        lines.forEach(l => { let m = ctx.measureText(l).width; if (m > maxW) maxW = m; });
-        let pad = 24, bw = maxW + pad * 2, bh = (fs + 10) * lines.length + pad * 2;
-        let bx = GW / 2 - bw / 2, by = GH / 2 - bh / 2;
-        ctx.fillStyle = "rgba(255,60,60,0.97)"; ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 10); else ctx.rect(bx, by, bw, bh);
-        ctx.fill(); ctx.fillStyle = "#fff";
-        lines.forEach((l, i) => ctx.fillText(l, GW / 2 - ctx.measureText(l).width / 2,
-            by + pad + fs * 0.85 + i * (fs + 10)));
-    }
+    function drawImg(img, r) { ctx.save(); ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.clip(); ctx.drawImage(img, r.x, r.y, r.w, r.h); ctx.restore(); ctx.strokeStyle = "#333"; ctx.lineWidth = 2; ctx.strokeRect(r.x, r.y, r.w, r.h); }
+    function drawBigImg(img, r) { ctx.drawImage(img, r.x, r.y, r.w, r.h); ctx.strokeStyle = "#333"; ctx.lineWidth = 2; ctx.strokeRect(r.x, r.y, r.w, r.h); }
+    function drawHint(img, regionIdx) { let c = getCenter(regionIdx); let tw = Math.floor(imgW * 0.20), th = Math.floor(imgH * 0.20); let tx = Math.floor(c.x - tw / 2), ty = Math.floor(c.y - th / 2); ctx.drawImage(img, tx, ty, tw, th); ctx.strokeStyle = "rgba(0,0,0,0.6)"; ctx.lineWidth = 1; ctx.strokeRect(tx, ty, tw, th); }
+    function drawFittedLabel(text, cx, cy, maxW, maxH, bg, fg) { let pad = 10, fs = Math.floor(maxH * 0.275); ctx.font = "bold " + fs + "px Arial"; while (fs > 4 && ctx.measureText(text).width > maxW - pad * 2) { fs--; ctx.font = "bold " + fs + "px Arial"; } let tw = ctx.measureText(text).width, bw = tw + pad * 2, bh = fs + pad * 2; let bx = Math.max(2, Math.min(cx - bw / 2, GW - bw - 2)); let by = Math.max(2, Math.min(cy - bh / 2, GH - bh - 2)); ctx.fillStyle = bg; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 6); else ctx.rect(bx, by, bw, bh); ctx.fill(); ctx.fillStyle = fg; ctx.fillText(text, bx + pad, by + pad + fs * 0.85); }
+    function drawFeedback(text) { let fs = Math.max(12, Math.floor(GH / 10)); ctx.font = "bold " + fs + "px Arial"; let lines = text.split("\\n"), maxW = 0; lines.forEach(l => { let m = ctx.measureText(l).width; if (m > maxW) maxW = m; }); let pad = 24, bw = maxW + pad * 2, bh = (fs + 10) * lines.length + pad * 2; let bx = GW / 2 - bw / 2, by = GH / 2 - bh / 2; ctx.fillStyle = "rgba(255,60,60,0.97)"; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 10); else ctx.rect(bx, by, bw, bh); ctx.fill(); ctx.fillStyle = "#fff"; lines.forEach((l, i) => ctx.fillText(l, GW / 2 - ctx.measureText(l).width / 2, by + pad + fs * 0.85 + i * (fs + 10))); }
 
     function render() {
-        if (videoOpen) { renderGridOnly(); return; }
-        ctx.fillStyle = bgColor; ctx.fillRect(0, 0, GW, GH);
-        ctx.strokeStyle = "#000"; ctx.lineWidth = 1;
-        for (let i = 1; i <= GRID_LINES; i++) {
-            let x = GW * i / (GRID_LINES + 1);
-            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, GH); ctx.stroke();
-        }
-        for (let i = 1; i <= GRID_LINES; i++) {
-            let y = GH * i / (GRID_LINES + 1);
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(GW, y); ctx.stroke();
-        }
-        ["single", "left", "right"].forEach(k => {
-            if (slotVis[k] && slotImg[k] && slots[k]) drawImg(slotImg[k], slots[k]);
-        });
+        if (videoOpen || isYTGameMode) { renderGridOnly(); return; }
+        renderGridOnly();
+        ["single", "left", "right"].forEach(k => { if (slotVis[k] && slotImg[k] && slots[k]) drawImg(slotImg[k], slots[k]); });
         if (bigVis && bigImg && bigSlot) drawBigImg(bigImg, bigSlot);
         if (hintVisible && hintImg) drawHint(hintImg, hintRegion);
-        if (nameBelowVisible) {
-            let z = getLabelZone();
-            drawFittedLabel(nameBelowText, z.cx, z.cy, z.zoneW, z.zoneH, "rgba(60,180,60,0.97)", "#fff");
-        }
+        if (nameBelowVisible) { let z = getLabelZone(); drawFittedLabel(nameBelowText, z.cx, z.cy, z.zoneW, z.zoneH, "rgba(60,180,60,0.97)", "#fff"); }
         if (feedbackVisible) drawFeedback(feedbackText);
     }
 
-    // -------------------------------------------------------
-    // AUDIO
-    // -------------------------------------------------------
-    function playAudio(idx) {
-        return new Promise(resolve => {
-            if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; }
-            let src = AUDIO_FILES[idx];
-            if (!src) { resolve(); return; }
-            currentAudio = new Audio(src);
-            currentAudio.onended = resolve;
-            currentAudio.onerror = resolve;
-            currentAudio.play().catch(resolve);
-        });
-    }
+    function playAudio(idx) { return new Promise(resolve => { if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; } let src = AUDIO_FILES[idx]; if (!src) { resolve(); return; } currentAudio = new Audio(src); currentAudio.onended = resolve; currentAudio.onerror = resolve; currentAudio.play().catch(resolve); }); }
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
     function rnd(n) { return Math.floor(Math.random() * n); }
 
-    // -------------------------------------------------------
-    // ASSET LOADING
-    // -------------------------------------------------------
-    function preloadImages(cb) {
-        if (!IMAGE_URLS.length) { cb(); return; }
-        loadedImages = new Array(IMAGE_URLS.length); let n = 0;
-        IMAGE_URLS.forEach((url, i) => {
-            let img = new Image();
-            img.onload = img.onerror = () => { if (++n === IMAGE_URLS.length) cb(); };
-            img.src = url; loadedImages[i] = img;
-        });
-    }
-    function loadSet(set, cb) {
-        IMAGE_URLS  = set.items.map(it => `${set.folder}/${it.base}.jpg`);
-        IMAGE_NAMES = set.items.map(it => it.label);
-        AUDIO_FILES = set.items.map(it => `${set.folder}/${it.base}.mp3`);
-        loadedImages = [];
-        preloadImages(cb);
-    }
+    function preloadImages(cb) { if (!IMAGE_URLS.length) { cb(); return; } loadedImages = new Array(IMAGE_URLS.length); let n = 0; IMAGE_URLS.forEach((url, i) => { let img = new Image(); img.onload = img.onerror = () => { if (++n === IMAGE_URLS.length) cb(); }; img.src = url; loadedImages[i] = img; }); }
+    function loadSet(set, cb) { IMAGE_URLS = set.items.map(it => `${set.folder}/${it.base}.jpg`); IMAGE_NAMES = set.items.map(it => it.label); AUDIO_FILES = set.items.map(it => `${set.folder}/${it.base}.mp3`); loadedImages = []; preloadImages(cb); }
+    
     function switchSet(i) {
-        closeMenu();
-        if (i === activeSetIndex) return;
-        activeSetIndex = i; gameActive = false;
-        if (videoOpen) closeVideo();
-        buildMenuItems();
-        loadSet(allSets[i], () => { setupLayout(); render(); phaseOne(); });
+        closeMenu(); if (i === activeSetIndex && !isYTGameMode) return;
+        if (isYTGameMode) stopYTGameMode();
+        activeSetIndex = i; gameActive = false; if (videoOpen) closeVideo();
+        buildMenuItems(); loadSet(allSets[i], () => { setupLayout(); render(); phaseOne(); });
     }
 
-    // -------------------------------------------------------
-    // GAME
-    // -------------------------------------------------------
     async function phaseOne() {
-        gameActive = false; clickPhase = 0;
-        setupLayout();
-        bigVis = false; bigImg = null; bigSlot = null;
-        nameBelowVisible = false; hintVisible = false; feedbackVisible = false;
-
-        let i1 = rnd(IMAGE_URLS.length), i2 = rnd(IMAGE_URLS.length);
-        while (i2 === i1) i2 = rnd(IMAGE_URLS.length);
-
-        correctImgIndex = i1; correctImgName = IMAGE_NAMES[i1];
-        correctRegion = Math.floor(Math.random() * GRID_ROWS * GRID_COLS) + 1;
-
-        slots.single = makeSlot(centerIdx); slotImg.single = loadedImages[i1];
-        slotVis.single = true; slotVis.left = false; slotVis.right = false;
-        hintImg = loadedImages[i1]; hintRegion = correctRegion; hintVisible = true;
+        gameActive = false; clickPhase = 0; setupLayout(); bigVis = false; bigImg = null; bigSlot = null; nameBelowVisible = false; hintVisible = false; feedbackVisible = false;
+        let i1 = rnd(IMAGE_URLS.length), i2 = rnd(IMAGE_URLS.length); while (i2 === i1) i2 = rnd(IMAGE_URLS.length);
+        correctImgIndex = i1; correctImgName = IMAGE_NAMES[i1]; correctRegion = Math.floor(Math.random() * GRID_ROWS * GRID_COLS) + 1;
+        slots.single = makeSlot(centerIdx); slotImg.single = loadedImages[i1]; slotVis.single = true; slotVis.left = false; slotVis.right = false; hintImg = loadedImages[i1]; hintRegion = correctRegion; hintVisible = true;
         render(); await sleep(SHOW_SINGLE_MS);
-
-        slotVis.single = false; hintVisible = false; render();
-        await sleep(GAP_BEFORE_PAIR);
-
-        if (Math.random() < 0.5) {
-            slotImg.left = loadedImages[i2]; slotImg.right = loadedImages[i1]; correctSide = "right";
-        } else {
-            slotImg.left = loadedImages[i1]; slotImg.right = loadedImages[i2]; correctSide = "left";
-        }
-        slots.left = makeSlot(leftIdx); slots.right = makeSlot(rightIdx);
-        slotVis.left = slotVis.right = true;
+        slotVis.single = false; hintVisible = false; render(); await sleep(GAP_BEFORE_PAIR);
+        if (Math.random() < 0.5) { slotImg.left = loadedImages[i2]; slotImg.right = loadedImages[i1]; correctSide = "right"; } else { slotImg.left = loadedImages[i1]; slotImg.right = loadedImages[i2]; correctSide = "left"; }
+        slots.left = makeSlot(leftIdx); slots.right = makeSlot(rightIdx); slotVis.left = slotVis.right = true;
         render(); clickPhase = 1; gameActive = true;
     }
 
     async function handleCorrectLocation() {
-        slotVis.left = false; slotVis.right = false;
-        let img = loadedImages[correctImgIndex];
-        bigSlot = makeBigSlot(img); bigImg = img; bigVis = true;
-        nameBelowText = correctImgName; nameBelowVisible = true;
-        render();
-        await playAudio(correctImgIndex);
-        await sleep(CORRECT_FLASH_MS);
-        bigVis = false; nameBelowVisible = false;
-        render(); await sleep(300); phaseOne();
+        slotVis.left = false; slotVis.right = false; let img = loadedImages[correctImgIndex]; bigSlot = makeBigSlot(img); bigImg = img; bigVis = true; nameBelowText = correctImgName; nameBelowVisible = true;
+        render(); await playAudio(correctImgIndex); await sleep(CORRECT_FLASH_MS);
+        bigVis = false; nameBelowVisible = false; render(); await sleep(300); phaseOne();
     }
 
     function hitTest(gx, gy, r) { return r && gx >= r.x && gx <= r.x + r.w && gy >= r.y && gy <= r.y + r.h; }
-
     function handleTap(px, py) {
-        if (!gameActive || videoOpen) return;
+        if (!gameActive || videoOpen || isYTGameMode) return;
         let g = toGame(px, py), gx = g.x, gy = g.y;
         if (clickPhase === 1) {
             let hl = hitTest(gx, gy, slots.left), hr = hitTest(gx, gy, slots.right);
             if (!hl && !hr) return;
-            gameActive = false;
-            let side = hl ? "left" : "right";
+            gameActive = false; let side = hl ? "left" : "right";
             if (side !== correctSide) {
-                slotVis.left = slotVis.right = false;
-                feedbackText = "WRONG\\nIMAGE"; feedbackVisible = true; render();
+                slotVis.left = slotVis.right = false; feedbackText = "WRONG\\nIMAGE"; feedbackVisible = true; render();
                 sleep(WRONG_IMG_MS).then(() => { feedbackVisible = false; render(); sleep(300).then(phaseOne); });
-            } else {
-                if (side === "left") slotVis.right = false; else slotVis.left = false;
-                render(); clickPhase = 2; gameActive = true;
-            }
+            } else { if (side === "left") slotVis.right = false; else slotVis.left = false; render(); clickPhase = 2; gameActive = true; }
         } else if (clickPhase === 2) {
-            gameActive = false;
-            let region = getRegion(gx, gy);
-            if (region === correctRegion) {
-                handleCorrectLocation();
-            } else {
-                slotVis.left = slotVis.right = false;
-                feedbackText = "WRONG"; feedbackVisible = true; render();
+            gameActive = false; let region = getRegion(gx, gy);
+            if (region === correctRegion) { handleCorrectLocation(); } else {
+                slotVis.left = slotVis.right = false; feedbackText = "WRONG"; feedbackVisible = true; render();
                 sleep(INCORRECT_MS).then(() => { feedbackVisible = false; render(); sleep(300).then(phaseOne); });
             }
         }
@@ -713,26 +611,16 @@
     window.addEventListener("resize", () => { setupLayout(); render(); });
     window.addEventListener("orientationchange", () => { setTimeout(() => { setupLayout(); render(); }, 350); });
 
-    // -------------------------------------------------------
-    // STARTUP
-    // -------------------------------------------------------
     Promise.all([
         fetch("assets.json?v="  + Date.now()).then(r => r.json()),
         fetch("youtube.json?v=" + Date.now()).then(r => r.json()).catch(() => ({ videos: [] }))
     ]).then(([assetData, ytData]) => {
-        allSets   = assetData.sets || [];
-        allVideos = ytData.videos  || [];
+        allSets = assetData.sets || []; allVideos = ytData.videos || [];
         if (!allSets.length) throw new Error("No sets in assets.json");
-        activeSetIndex = 0;
-        buildMenuItems();
-        buildVideoMenu();
+        activeSetIndex = 0; buildMenuItems(); buildVideoMenus();
         loadSet(allSets[0], () => { setupLayout(); render(); phaseOne(); });
     }).catch(err => {
-        console.error("Startup error:", err);
-        setupLayout();
-        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, GW || 400, GH || 300);
-        ctx.fillStyle = "#c00"; ctx.font = "bold 18px Arial";
-        ctx.fillText("Error: " + err.message, 20, (GH || 300) / 2);
+        console.error("Startup error:", err); setupLayout(); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, GW || 400, GH || 300); ctx.fillStyle = "#c00"; ctx.font = "bold 18px Arial"; ctx.fillText("Error: " + err.message, 20, (GH || 300) / 2);
     });
 </script>
 </body>
