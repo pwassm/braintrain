@@ -15,14 +15,13 @@
         
         /* Debug Timestamp */
         #debugTimestamp {
-            position: absolute; top: 4px; left: 4px; z-index: 9999;
-            color: rgba(255,255,255,0.4); font: 10px monospace; pointer-events: none;
+            position: absolute; top: 8px; left: 8px; z-index: 9999;
+            color: #ff0; font: bold 14px monospace; background: rgba(0,0,0,0.6);
+            padding: 4px 8px; border-radius: 4px; pointer-events: none;
         }
 
         /* Menu System */
-        #menuWrap {
-            position: fixed; z-index: 999; width: 48px; height: 48px;
-        }
+        #menuWrap { position: fixed; z-index: 999; width: 48px; height: 48px; }
         #menuWrap.portrait-mode { transform: rotate(90deg); transform-origin: 24px 24px; }
         #menuBtn {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -68,17 +67,18 @@
         #videoWrap.open { display: block; }
         #ytDiv { position: absolute; top: 0; left: 0; pointer-events: auto;}
 
-        /* YTasImage Game Wrappers - The Crop Trick */
+        /* YTpix Game Wrappers */
         .yt-game-wrap { 
             display: none; position: absolute; z-index: 10; 
             overflow: hidden; background: #000;
             border: 2px solid #333; box-sizing: border-box;
         }
         
-        /* Forces iframe to 200% height and shifts it up 50%, completely pushing Title and Logo out of the wrapper */
+        /* Start with opacity 0 to hide loading spinners and API flashes */
         .yt-game-wrap iframe { 
-            position: absolute; top: -50%; left: 0; width: 100%; height: 200%; pointer-events: none;
+            position: absolute; pointer-events: none; opacity: 0; transition: opacity 0.2s;
         }
+        .yt-game-wrap iframe.ready { opacity: 1; }
         
         .yt-hitbox { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 12; cursor: pointer; }
 
@@ -103,7 +103,7 @@
         <button id="closeVideoBtn" aria-label="Close">X</button>
     </div>
 
-    <!-- For YTasImage game mode -->
+    <!-- For YTpix game mode -->
     <div id="ytGameCenter" class="yt-game-wrap"><div id="ytPlayerCenter"></div></div>
     <div id="ytGameLeft" class="yt-game-wrap"><div id="ytPlayerLeft"></div><div class="yt-hitbox" id="ytHitLeft"></div></div>
     <div id="ytGameRight" class="yt-game-wrap"><div id="ytPlayerRight"></div><div class="yt-hitbox" id="ytHitRight"></div></div>
@@ -113,7 +113,7 @@
     <div id="menuPanel">
         <div class="menu-item" id="miPlay">Play Video</div>
         <div class="menu-divider"></div>
-        <div class="menu-item" id="miYTasImage">YT as Image Game</div>
+        <div class="menu-item" id="miYTasImage">YTpix</div>
         <div class="menu-divider"></div>
         <div class="menu-item" id="miConfig">Config</div>
         <div class="menu-item" id="miHelp">Help</div>
@@ -126,7 +126,6 @@
 
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
-    // Timestamp for debugging cache
     document.getElementById("debugTimestamp").innerText = new Date().toLocaleString();
 
     let IMAGE_URLS = [], IMAGE_NAMES = [], AUDIO_FILES = [], allSets = [], activeSetIndex = 0, allVideos = [];
@@ -137,7 +136,7 @@
     let slots = { single:null, left:null, right:null }, slotImg = { single:null, left:null, right:null }, slotVis = { single:false, left:false, right:false };
     let bigSlot = null, bigImg = null, bigVis = false, hintVisible = false, hintImg = null, hintRegion = 0, nameBelowVisible = false, nameBelowText = "", feedbackVisible = false, feedbackText = "", currentAudio = null;
 
-    // YT GAME MODE
+    // YTPIX MODE
     let isYTGameMode = false, ytGameVideo = null, ytGamePlayers = { center: null, left: null, right: null }, ytGameReadyCount = 0;
     let playExpanded = false, ytimgExpanded = false;
 
@@ -168,6 +167,10 @@
         setupLayout(); renderGridOnly(); 
         
         slots.single = makeSlot(centerIdx); slots.left = makeSlot(leftIdx); slots.right = makeSlot(rightIdx);
+        
+        let crop = vid.crop || [0, 0, 1, 1];
+        let cw = crop[2] - crop[0]; let ch = crop[3] - crop[1];
+
         function positionYTGameWrap(id, rect) {
             let el = document.getElementById(id);
             el.style.left = rect.x + "px"; el.style.top = rect.y + "px";
@@ -188,19 +191,33 @@
                 videoId: vid.id,
                 playerVars: { autoplay: 1, controls: 0, disablekb: 1, modestbranding: 1, rel: 0, showinfo: 0, mute: 1, start: timeToFreeze, playsinline: 1 },
                 events: {
-                    onReady: (e) => { e.target.mute(); },
+                    onReady: (e) => { 
+                        e.target.mute(); 
+                        let iframe = e.target.getIframe();
+                        // Apply crop logic dynamically based on JSON
+                        iframe.style.width = (100 / cw) + "%";
+                        iframe.style.height = (100 / ch) + "%";
+                        iframe.style.left = -(crop[0] * 100 / cw) + "%";
+                        iframe.style.top = -(crop[1] * 100 / ch) + "%";
+                    },
                     onStateChange: (e) => {
                         if (e.data === YT.PlayerState.PLAYING) {
-                            e.target.pauseVideo();
-                            ytGameReadyCount++;
-                            if (ytGameReadyCount === 3) startYTGamePhase1(); 
+                            // Wait a fraction of a second to ensure frame is painted, pause, then unhide
+                            setTimeout(() => {
+                                e.target.pauseVideo();
+                                let iframe = e.target.getIframe();
+                                if (iframe) iframe.classList.add('ready');
+                                ytGameReadyCount++;
+                                if (ytGameReadyCount === 3) startYTGamePhase1(); 
+                            }, 250);
                         }
                     }
                 }
             });
         }
 
-        let timeT = vid.start || 0, timeT4 = timeT + 4;
+        let timeT = vid.start || 0, timeTdiff = vid.tdiff || 4;
+        let timeT4 = timeT + timeTdiff;
         correctSide = Math.random() < 0.5 ? "right" : "left";
         
         document.getElementById("ytGameCenter").innerHTML = '<div id="ytPlayerCenter"></div>';
@@ -264,7 +281,7 @@
             ifH = wrapH; ifW = Math.round(ifH * 16 / 9); ifX = Math.round((wrapW - ifW) / 2); ifY = 0;
         }
         videoWrap.style.left = wrapX + "px"; videoWrap.style.top = wrapY + "px"; videoWrap.style.width = wrapW + "px"; videoWrap.style.height = wrapH + "px";
-        if (ytPlayer && ytPlayer.getIframe) { try { let iframe = ytPlayer.getIframe(); if (iframe) { iframe.style.position = "absolute"; iframe.style.width = ifW + "px"; iframe.style.height = ifH + "px"; iframe.style.left = ifX + "px"; iframe.style.top = ifY + "px"; } } catch(e) {} }
+        if (ytPlayer && ytPlayer.getIframe) { try { let iframe = ytPlayer.getIframe(); if (iframe) { iframe.style.position = "absolute"; iframe.style.width = ifW + "px"; iframe.style.height = ifH + "px"; iframe.style.left = ifX + "px"; iframe.style.top = ifY + "px"; iframe.style.opacity = 1; } } catch(e) {} }
         return { ifW, ifH, ifX, ifY };
     }
 
@@ -391,7 +408,8 @@
     window.addEventListener("orientationchange", () => { setTimeout(() => { setupLayout(); render(); }, 350); });
 
     Promise.all([
-        fetch("assets.json?v="  + Date.now()).then(r => r.json()), fetch("youtube.json?v=" + Date.now()).then(r => r.json()).catch(() => ({ videos: [] }))
+        fetch("assets.json?v="  + Date.now()).then(r => r.json()), 
+        fetch("yt.json?v=" + Date.now()).then(r => r.json()).catch(() => ({ videos: [] }))
     ]).then(([assetData, ytData]) => {
         allSets = assetData.sets || []; allVideos = ytData.videos || [];
         if (!allSets.length) throw new Error("No sets in assets.json");

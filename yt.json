@@ -1,0 +1,44 @@
+{
+  "videos": [
+    {
+      "id": "X_dvUgqe9DI",
+      "label": "Serving Underspin",
+      "start": 2,
+      "end": 12,
+      "mute": 0,
+      "isLandscape": 0,
+      "tdiff": 4,
+      "crop": [0.0, 0.2, 1.0, 0.8]
+    },
+    {
+      "id": "IpBrqPzyLds",
+      "label": "9Jan2026, Wroclaw Zoo",
+      "start": 4,
+      "end": 38,
+      "mute": 0,
+      "isLandscape": 1,
+      "tdiff": 4,
+      "crop": [0.2, 0.0, 0.8, 1.0]
+    },
+    {
+      "id": "K738pe3dMK0",
+      "label": "Single Arm Drill for freestyle",
+      "start": 4,
+      "end": 38,
+      "mute": 0,
+      "isLandscape": 0,
+      "tdiff": 4,
+      "crop": [0.0, 0.0, 1.0, 1.0]
+    },
+    {
+      "id": "-ZiSU3duFVM",
+      "label": "Get More Spin",
+      "start": 2,
+      "end": 12,
+      "mute": 1,
+      "isLandscape": 0,
+      "tdiff": 3,
+      "crop": [0.1, 0.1, 0.9, 0.9]
+    }
+  ]
+}
