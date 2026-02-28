@@ -13,7 +13,7 @@
         #rotateWrap { position: fixed; top: 0; left: 0; }
         #gameCanvas { display: block; }
         
-        /* Debug Timestamp - Large and bright for cache checking */
+        /* Debug Timestamp */
         #debugTimestamp {
             position: absolute; top: 10px; left: 10px; z-index: 9999;
             color: #ff0; font: bold 16px monospace; background: rgba(0,0,0,0.8);
@@ -74,10 +74,14 @@
             overflow: hidden; background: #000;
             border: 2px solid #333; box-sizing: border-box;
         }
-        
-        /* opacity starts at 0, no transitions, instant cut when ready */
         .yt-game-wrap iframe { 
-            position: absolute; pointer-events: none; opacity: 0;
+            position: absolute; pointer-events: none; 
+        }
+        
+        /* The Black Curtain: Hides the video until it's perfectly paused and text-free */
+        .yt-curtain {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #000; z-index: 11; transition: opacity 0.2s ease-out;
         }
         
         .yt-hitbox { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 12; cursor: pointer; }
@@ -97,16 +101,15 @@
 <div id="rotateWrap">
     <canvas id="gameCanvas"></canvas>
     
-    <!-- For playing video mode -->
     <div id="videoWrap">
         <div id="ytDiv"></div>
         <button id="closeVideoBtn" aria-label="Close">X</button>
     </div>
 
-    <!-- For YTpix game mode -->
-    <div id="ytGameCenter" class="yt-game-wrap"><div id="ytPlayerCenter"></div></div>
-    <div id="ytGameLeft" class="yt-game-wrap"><div id="ytPlayerLeft"></div><div class="yt-hitbox" id="ytHitLeft"></div></div>
-    <div id="ytGameRight" class="yt-game-wrap"><div id="ytPlayerRight"></div><div class="yt-hitbox" id="ytHitRight"></div></div>
+    <!-- YTpix game mode divs (Curtain injected dynamically) -->
+    <div id="ytGameCenter" class="yt-game-wrap"></div>
+    <div id="ytGameLeft" class="yt-game-wrap"></div>
+    <div id="ytGameRight" class="yt-game-wrap"></div>
 </div>
 
 <div id="menuWrap">
@@ -184,6 +187,18 @@
         document.getElementById("ytGameRight").style.display = "none";
 
         ytGameReadyCount = 0;
+
+        function applyCrop(iframeEl, vidData) {
+            if (!iframeEl) return;
+            let crop = vidData.crop || [0, 0, 1, 1];
+            let cL = crop[0], cT = crop[1], cR = crop[2], cB = crop[3];
+            let cw = cR - cL; let ch = cB - cT;
+            iframeEl.style.width = (100 / cw) + "%";
+            iframeEl.style.height = (100 / ch) + "%";
+            iframeEl.style.left = -(cL * 100 / cw) + "%";
+            iframeEl.style.top = -(cT * 100 / ch) + "%";
+        }
+
         function createFreezePlayer(divId, key, targetTime) {
             if (ytGamePlayers[key]) ytGamePlayers[key].destroy();
 
@@ -193,31 +208,25 @@
                 events: {
                     onReady: (e) => { 
                         e.target.mute(); 
-                        
-                        // Exact Math for Crop
-                        let crop = vid.crop || [0, 0, 1, 1];
-                        let cL = crop[0], cT = crop[1], cR = crop[2], cB = crop[3];
-                        let cw = cR - cL; let ch = cB - cT;
-
-                        let iframe = e.target.getIframe();
-                        iframe.style.width = (100 / cw) + "%";
-                        iframe.style.height = (100 / ch) + "%";
-                        iframe.style.left = -(cL * 100 / cw) + "%";
-                        iframe.style.top = -(cT * 100 / ch) + "%";
+                        applyCrop(e.target.getIframe(), vid);
                     },
                     onStateChange: (e) => {
-                        // Wait for playback to begin, then instantly pause
+                        // Keep cropping enforced during state changes
+                        applyCrop(e.target.getIframe(), vid);
+                        
                         if (e.data === YT.PlayerState.PLAYING) {
                             e.target.pauseVideo();
                         } 
-                        // Only reveal the iframe after YouTube confirms it has successfully paused
                         else if (e.data === YT.PlayerState.PAUSED) {
-                            let iframe = e.target.getIframe();
-                            if (iframe && iframe.style.opacity !== "1") {
-                                iframe.style.opacity = "1";
-                                ytGameReadyCount++;
-                                if (ytGameReadyCount === 3) startYTGamePhase1(); 
-                            }
+                            // Wait a hard 400ms for YouTube to finish painting the frozen frame and hide text
+                            setTimeout(() => {
+                                let curtain = document.getElementById("curtain_" + key);
+                                if (curtain && curtain.style.opacity !== "0") {
+                                    curtain.style.opacity = "0"; // Fade out the black curtain
+                                    ytGameReadyCount++;
+                                    if (ytGameReadyCount === 3) startYTGamePhase1(); 
+                                }
+                            }, 400);
                         }
                     }
                 }
@@ -228,9 +237,10 @@
         let timeT4 = timeT + timeTdiff;
         correctSide = Math.random() < 0.5 ? "right" : "left";
         
-        document.getElementById("ytGameCenter").innerHTML = '<div id="ytPlayerCenter"></div>';
-        document.getElementById("ytGameLeft").innerHTML = '<div id="ytPlayerLeft"></div><div class="yt-hitbox" id="ytHitLeft"></div>';
-        document.getElementById("ytGameRight").innerHTML = '<div id="ytPlayerRight"></div><div class="yt-hitbox" id="ytHitRight"></div>';
+        // Rebuild DOM with the Black Curtains
+        document.getElementById("ytGameCenter").innerHTML = '<div id="ytPlayerCenter"></div><div class="yt-curtain" id="curtain_center"></div>';
+        document.getElementById("ytGameLeft").innerHTML = '<div id="ytPlayerLeft"></div><div class="yt-curtain" id="curtain_left"></div><div class="yt-hitbox" id="ytHitLeft"></div>';
+        document.getElementById("ytGameRight").innerHTML = '<div id="ytPlayerRight"></div><div class="yt-curtain" id="curtain_right"></div><div class="yt-hitbox" id="ytHitRight"></div>';
 
         createFreezePlayer("ytPlayerCenter", "center", timeT);
         if (correctSide === "right") { createFreezePlayer("ytPlayerRight", "right", timeT); createFreezePlayer("ytPlayerLeft", "left", timeT4); } 
