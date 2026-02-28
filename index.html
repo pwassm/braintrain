@@ -74,16 +74,6 @@
             overflow: hidden; background: #000;
             border: 2px solid #333; box-sizing: border-box;
         }
-        .yt-game-wrap iframe { 
-            position: absolute; pointer-events: none; 
-        }
-        
-        /* The Black Curtain: Hides the video until it's perfectly paused and text-free */
-        .yt-curtain {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            background: #000; z-index: 11; transition: opacity 0.2s ease-out;
-        }
-        
         .yt-hitbox { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 12; cursor: pointer; }
 
         #closeVideoBtn {
@@ -106,7 +96,7 @@
         <button id="closeVideoBtn" aria-label="Close">X</button>
     </div>
 
-    <!-- YTpix game mode divs (Curtain injected dynamically) -->
+    <!-- YTpix game mode divs -->
     <div id="ytGameCenter" class="yt-game-wrap"></div>
     <div id="ytGameLeft" class="yt-game-wrap"></div>
     <div id="ytGameRight" class="yt-game-wrap"></div>
@@ -175,28 +165,30 @@
             let el = document.getElementById(id);
             el.style.left = rect.x + "px"; el.style.top = rect.y + "px";
             el.style.width = rect.w + "px"; el.style.height = rect.h + "px";
+            // KEY SPEED FIX: Keep display block but drop opacity. Prevents browser from throttling load time!
             el.style.display = "block";
+            el.style.opacity = "0.001"; 
         }
         
         positionYTGameWrap("ytGameCenter", slots.single);
         positionYTGameWrap("ytGameLeft", slots.left);
         positionYTGameWrap("ytGameRight", slots.right);
-        
-        document.getElementById("ytGameCenter").style.display = "none";
-        document.getElementById("ytGameLeft").style.display = "none";
-        document.getElementById("ytGameRight").style.display = "none";
 
         ytGameReadyCount = 0;
 
-        function applyCrop(iframeEl, vidData) {
-            if (!iframeEl) return;
+        // Force crop on ID to guarantee it applies reliably to Left/Right
+        function applyCrop(id, vidData) {
+            let el = document.getElementById(id);
+            if (!el) return;
             let crop = vidData.crop || [0, 0, 1, 1];
             let cL = crop[0], cT = crop[1], cR = crop[2], cB = crop[3];
             let cw = cR - cL; let ch = cB - cT;
-            iframeEl.style.width = (100 / cw) + "%";
-            iframeEl.style.height = (100 / ch) + "%";
-            iframeEl.style.left = -(cL * 100 / cw) + "%";
-            iframeEl.style.top = -(cT * 100 / ch) + "%";
+            el.style.width = (100 / cw) + "%";
+            el.style.height = (100 / ch) + "%";
+            el.style.left = -(cL * 100 / cw) + "%";
+            el.style.top = -(cT * 100 / ch) + "%";
+            el.style.position = "absolute";
+            el.style.pointerEvents = "none";
         }
 
         function createFreezePlayer(divId, key, targetTime) {
@@ -208,25 +200,21 @@
                 events: {
                     onReady: (e) => { 
                         e.target.mute(); 
-                        applyCrop(e.target.getIframe(), vid);
+                        applyCrop(divId, vid); 
                     },
                     onStateChange: (e) => {
-                        // Keep cropping enforced during state changes
-                        applyCrop(e.target.getIframe(), vid);
+                        applyCrop(divId, vid); 
                         
                         if (e.data === YT.PlayerState.PLAYING) {
                             e.target.pauseVideo();
                         } 
                         else if (e.data === YT.PlayerState.PAUSED) {
-                            // Wait a hard 400ms for YouTube to finish painting the frozen frame and hide text
-                            setTimeout(() => {
-                                let curtain = document.getElementById("curtain_" + key);
-                                if (curtain && curtain.style.opacity !== "0") {
-                                    curtain.style.opacity = "0"; // Fade out the black curtain
-                                    ytGameReadyCount++;
-                                    if (ytGameReadyCount === 3) startYTGamePhase1(); 
-                                }
-                            }, 400);
+                            // Only trigger once per video
+                            if (!e.target.readyFlag) {
+                                e.target.readyFlag = true;
+                                ytGameReadyCount++;
+                                if (ytGameReadyCount === 3) startYTGamePhase1(); 
+                            }
                         }
                     }
                 }
@@ -237,10 +225,10 @@
         let timeT4 = timeT + timeTdiff;
         correctSide = Math.random() < 0.5 ? "right" : "left";
         
-        // Rebuild DOM with the Black Curtains
-        document.getElementById("ytGameCenter").innerHTML = '<div id="ytPlayerCenter"></div><div class="yt-curtain" id="curtain_center"></div>';
-        document.getElementById("ytGameLeft").innerHTML = '<div id="ytPlayerLeft"></div><div class="yt-curtain" id="curtain_left"></div><div class="yt-hitbox" id="ytHitLeft"></div>';
-        document.getElementById("ytGameRight").innerHTML = '<div id="ytPlayerRight"></div><div class="yt-curtain" id="curtain_right"></div><div class="yt-hitbox" id="ytHitRight"></div>';
+        // Reset HTML structures
+        document.getElementById("ytGameCenter").innerHTML = '<div id="ytPlayerCenter"></div>';
+        document.getElementById("ytGameLeft").innerHTML = '<div id="ytPlayerLeft"></div><div class="yt-hitbox" id="ytHitLeft"></div>';
+        document.getElementById("ytGameRight").innerHTML = '<div id="ytPlayerRight"></div><div class="yt-hitbox" id="ytHitRight"></div>';
 
         createFreezePlayer("ytPlayerCenter", "center", timeT);
         if (correctSide === "right") { createFreezePlayer("ytPlayerRight", "right", timeT); createFreezePlayer("ytPlayerLeft", "left", timeT4); } 
@@ -251,12 +239,23 @@
     }
 
     async function startYTGamePhase1() {
+        // Now that they are all fully painted and paused, restore opacity
+        document.getElementById("ytGameCenter").style.opacity = "1";
+        document.getElementById("ytGameLeft").style.opacity = "1";
+        document.getElementById("ytGameRight").style.opacity = "1";
+
+        // Logic sequence
+        document.getElementById("ytGameLeft").style.display = "none";
+        document.getElementById("ytGameRight").style.display = "none";
         document.getElementById("ytGameCenter").style.display = "block";
+        
         await sleep(SHOW_SINGLE_MS);
         document.getElementById("ytGameCenter").style.display = "none";
+        
         await sleep(GAP_BEFORE_PAIR);
         document.getElementById("ytGameLeft").style.display = "block";
         document.getElementById("ytGameRight").style.display = "block";
+        
         clickPhase = 1; gameActive = true;
     }
 
