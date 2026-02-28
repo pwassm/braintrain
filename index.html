@@ -13,7 +13,7 @@
         #rotateWrap { position: fixed; top: 0; left: 0; }
         #gameCanvas { display: block; }
         
-        /* Debug Timestamp - Made much larger and more prominent */
+        /* Debug Timestamp - Large and bright for cache checking */
         #debugTimestamp {
             position: absolute; top: 10px; left: 10px; z-index: 9999;
             color: #ff0; font: bold 16px monospace; background: rgba(0,0,0,0.8);
@@ -75,10 +75,10 @@
             border: 2px solid #333; box-sizing: border-box;
         }
         
+        /* opacity starts at 0, no transitions, instant cut when ready */
         .yt-game-wrap iframe { 
-            position: absolute; pointer-events: none; opacity: 0; transition: opacity 0.3s ease-in;
+            position: absolute; pointer-events: none; opacity: 0;
         }
-        .yt-game-wrap iframe.ready { opacity: 1; }
         
         .yt-hitbox { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 12; cursor: pointer; }
 
@@ -179,7 +179,6 @@
         positionYTGameWrap("ytGameLeft", slots.left);
         positionYTGameWrap("ytGameRight", slots.right);
         
-        // Hide completely until loaded
         document.getElementById("ytGameCenter").style.display = "none";
         document.getElementById("ytGameLeft").style.display = "none";
         document.getElementById("ytGameRight").style.display = "none";
@@ -188,27 +187,16 @@
         function createFreezePlayer(divId, key, targetTime) {
             if (ytGamePlayers[key]) ytGamePlayers[key].destroy();
 
-            // Load video 0.8 seconds EARLY so we bypass buffering spinners entirely while invisible
-            let PRELOAD_SEC = 0.8;
-            let startTime = Math.max(0, targetTime - PRELOAD_SEC);
-            let hasFired = false;
-
             ytGamePlayers[key] = new YT.Player(divId, {
                 videoId: vid.id,
-                playerVars: { autoplay: 1, controls: 0, disablekb: 1, modestbranding: 1, rel: 0, showinfo: 0, mute: 1, start: Math.floor(startTime), playsinline: 1 },
+                playerVars: { autoplay: 1, controls: 0, disablekb: 1, modestbranding: 1, rel: 0, showinfo: 0, mute: 1, start: targetTime, playsinline: 1 },
                 events: {
                     onReady: (e) => { 
                         e.target.mute(); 
                         
-                        // Parse Crop
+                        // Exact Math for Crop
                         let crop = vid.crop || [0, 0, 1, 1];
-                        let cL = crop[0];
-                        // FORCED SAFE-ZONES: Always push top/bottom beyond 14% so YouTube text is clipped out mathematically
-                        let cT = Math.max(0.14, crop[1]); 
-                        let cR = crop[2];
-                        let cB = Math.min(0.86, crop[3]); 
-                        if (cB <= cT) cB = cT + 0.1; // Safety check
-                        
+                        let cL = crop[0], cT = crop[1], cR = crop[2], cB = crop[3];
                         let cw = cR - cL; let ch = cB - cT;
 
                         let iframe = e.target.getIframe();
@@ -216,27 +204,20 @@
                         iframe.style.height = (100 / ch) + "%";
                         iframe.style.left = -(cL * 100 / cw) + "%";
                         iframe.style.top = -(cT * 100 / ch) + "%";
-
-                        e.target.seekTo(startTime, true);
                     },
                     onStateChange: (e) => {
-                        // Wait for PLAYING state, then accurately calculate ms until true TargetTime
-                        if (e.data === YT.PlayerState.PLAYING && !hasFired) {
-                            hasFired = true;
-                            let current = e.target.getCurrentTime();
-                            let waitMs = (targetTime - current) * 1000;
-                            if (waitMs <= 0 || waitMs > 2000) waitMs = PRELOAD_SEC * 1000;
-                            
-                            setTimeout(() => {
-                                e.target.pauseVideo();
-                                // Wait a tiny bit extra for frame to completely settle before showing
-                                setTimeout(() => {
-                                    let iframe = e.target.getIframe();
-                                    if (iframe) iframe.classList.add('ready');
-                                    ytGameReadyCount++;
-                                    if (ytGameReadyCount === 3) startYTGamePhase1(); 
-                                }, 150);
-                            }, waitMs);
+                        // Wait for playback to begin, then instantly pause
+                        if (e.data === YT.PlayerState.PLAYING) {
+                            e.target.pauseVideo();
+                        } 
+                        // Only reveal the iframe after YouTube confirms it has successfully paused
+                        else if (e.data === YT.PlayerState.PAUSED) {
+                            let iframe = e.target.getIframe();
+                            if (iframe && iframe.style.opacity !== "1") {
+                                iframe.style.opacity = "1";
+                                ytGameReadyCount++;
+                                if (ytGameReadyCount === 3) startYTGamePhase1(); 
+                            }
                         }
                     }
                 }
