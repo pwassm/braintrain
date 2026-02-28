@@ -81,9 +81,15 @@
         #videoWrap.open { display: block; }
         #ytDiv { position: absolute; top: 0; left: 0; pointer-events: auto;}
 
-        /* YTasImage Game Wrappers */
-        .yt-game-wrap { display: none; position: absolute; z-index: 10; overflow: hidden; background: #000; }
-        .yt-game-wrap iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;}
+        /* YTasImage Game Wrappers - Overflow hidden handles the crop */
+        .yt-game-wrap { 
+            display: none; position: absolute; z-index: 10; overflow: hidden; background: #000;
+            border: 2px solid #333; box-sizing: border-box;
+        }
+        /* Iframe scaled up 300% and centered to push title/logo out of bounds */
+        .yt-game-wrap iframe { 
+            position: absolute; top: -100%; left: -100%; width: 300%; height: 300%; pointer-events: none;
+        }
         
         /* The invisible overlays that catch our click/tap events over the iframes */
         .yt-hitbox { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 12; cursor: pointer; }
@@ -237,7 +243,6 @@
     function startYTGame(vid) {
         if (!ytAPIReady) { setTimeout(() => startYTGame(vid), 300); return; }
         
-        // Clean up normal game or playing video
         if (videoOpen) closeVideo();
         isYTGameMode = true;
         ytGameVideo = vid;
@@ -245,25 +250,17 @@
         clickPhase = 0;
         
         setupLayout();
-        renderGridOnly(); // Wipe canvas
+        renderGridOnly(); 
         
-        // Calculate the standard image slots (same coordinates as JPG images)
         slots.single = makeSlot(centerIdx);
         slots.left = makeSlot(leftIdx);
         slots.right = makeSlot(rightIdx);
 
-        // Position the iframes directly over the calculated slots
         function positionYTGameWrap(id, rect) {
             let el = document.getElementById(id);
             el.style.left = rect.x + "px"; el.style.top = rect.y + "px";
             el.style.width = rect.w + "px"; el.style.height = rect.h + "px";
             el.style.display = "block";
-            // scale up slightly to hide youtube black bars inside the square slot
-            let iframe = el.querySelector('iframe');
-            if (iframe) {
-                iframe.style.width = "105%"; iframe.style.height = "105%";
-                iframe.style.left = "-2.5%"; iframe.style.top = "-2.5%";
-            }
         }
         
         positionYTGameWrap("ytGameCenter", slots.single);
@@ -284,11 +281,10 @@
                 events: {
                     onReady: (e) => { e.target.mute(); },
                     onStateChange: (e) => {
-                        // When video starts playing, immediately pause to create a freeze frame
                         if (e.data === YT.PlayerState.PLAYING) {
                             e.target.pauseVideo();
                             ytGameReadyCount++;
-                            if (ytGameReadyCount === 3) startYTGamePhase1(); // all 3 ready
+                            if (ytGameReadyCount === 3) startYTGamePhase1(); 
                         }
                     }
                 }
@@ -305,10 +301,8 @@
         document.getElementById("ytGameLeft").innerHTML = '<div id="ytPlayerLeft"></div><div class="yt-hitbox" id="ytHitLeft"></div>';
         document.getElementById("ytGameRight").innerHTML = '<div id="ytPlayerRight"></div><div class="yt-hitbox" id="ytHitRight"></div>';
 
-        // Load center player (Time T)
         createFreezePlayer("ytPlayerCenter", "center", timeT);
         
-        // Load side players (One is Time T, the other is T+4)
         if (correctSide === "right") {
             createFreezePlayer("ytPlayerRight", "right", timeT);
             createFreezePlayer("ytPlayerLeft", "left", timeT4);
@@ -351,7 +345,6 @@
                 feedbackVisible = false; renderGridOnly(); sleep(300).then(() => startYTGame(ytGameVideo)); 
             });
         } else {
-            // Correct - show center again as "success"
             document.getElementById("ytGameLeft").style.display = "none";
             document.getElementById("ytGameRight").style.display = "none";
             document.getElementById("ytGameCenter").style.display = "block";
@@ -504,7 +497,7 @@
 
     function handleDocPointerUp(e) {
         if (menuPanel.classList.contains("open")) { closeMenu(); return; }
-        if (isYTGameMode) return; // YT game uses hitbox divs, not canvas coordinate math
+        if (isYTGameMode) return;
         handleTap(e.clientX, e.clientY);
     }
     document.addEventListener("pointerup", handleDocPointerUp);
