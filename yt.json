@@ -3,12 +3,12 @@
     {
       "id": "X_dvUgqe9DI",
       "label": "Serving Underspin",
-      "start": 2,
-      "end": 12,
+      "start": 14,
+      "end": 22,
       "mute": 0,
       "isLandscape": 0,
       "tdiff": 4,
-      "crop": [0.50, 0.20, 0.75, 0.62]
+      "crop": [0.36, 0.51, 0.54, 0.79]
     },
     {
       "id": "IpBrqPzyLds",
