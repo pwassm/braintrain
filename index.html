@@ -13,13 +13,6 @@ html, body { overflow: hidden; touch-action: manipulation; background: #000; }
 #rotateWrap { position: fixed; top: 0; left: 0; }
 #gameCanvas { display: block; }
 
-#debugTimestamp {
-    position: absolute; top: 10px; left: 10px; z-index: 9999;
-    color: #ff0; font: bold 16px monospace; background: rgba(0,0,0,0.8);
-    padding: 6px 12px; border-radius: 6px; border: 2px solid #ff0;
-    pointer-events: none;
-}
-
 #menuWrap { position: fixed; z-index: 999; width: 48px; height: 48px; }
 #menuWrap.portrait-mode { transform: rotate(90deg); transform-origin: 24px 24px; }
 #menuBtn {
@@ -42,6 +35,13 @@ html, body { overflow: hidden; touch-action: manipulation; background: #000; }
 #menuPanel::-webkit-scrollbar { width: 6px; }
 #menuPanel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 3px; }
 #menuPanel.open { display: flex; }
+
+/* Tiny date stamp at top of menu panel */
+#menuDateStamp {
+    padding: 6px 12px 2px 12px; font: 10px Arial, sans-serif;
+    color: rgba(255,255,255,0.35); text-align: right;
+    flex-shrink: 0; user-select: none; letter-spacing: 0.3px;
+}
 
 .menu-item {
     padding: 13px 18px; color: #fff; font: 15px Arial, sans-serif;
@@ -103,6 +103,22 @@ html, body { overflow: hidden; touch-action: manipulation; background: #000; }
 }
 #vmHeader h2 { font-size: 16px; color: #8ef; margin-right: 6px; }
 
+/* Admin badge shown when logged in */
+#vmAdminBadge {
+    display: none; padding: 3px 10px; border-radius: 12px;
+    background: #3a1a0a; border: 1px solid #f80; color: #fc8;
+    font-size: 11px; font-weight: bold;
+}
+#vmAdminBadge.visible { display: inline-block; }
+
+/* User badge */
+#vmUserBadge {
+    display: none; padding: 3px 10px; border-radius: 12px;
+    background: #0a2a1a; border: 1px solid #0f8; color: #afa;
+    font-size: 11px;
+}
+#vmUserBadge.visible { display: inline-block; }
+
 .vm-tab {
     padding: 5px 14px; border-radius: 6px; cursor: pointer;
     background: #2a2a3e; border: 1px solid #444; font-size: 13px; color: #ccc;
@@ -125,6 +141,8 @@ html, body { overflow: hidden; touch-action: manipulation; background: #000; }
 .vm-btn.danger:hover { background: #3e1a1a; }
 .vm-btn.success { border-color: #5f5; color: #afa; }
 .vm-btn.success:hover { background: #1a3e1a; }
+.vm-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.vm-btn:disabled:hover { background: #2a2a3e; border-color: #555; color: #ddd; }
 
 #vmSelInfo { margin-left: auto; font-size: 12px; color: #888; white-space: nowrap; }
 
@@ -136,7 +154,7 @@ html, body { overflow: hidden; touch-action: manipulation; background: #000; }
 #vmTableWrap::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.25); border-radius: 4px; }
 
 #vmTable {
-    border-collapse: collapse; width: 100%; min-width: 600px;
+    border-collapse: collapse; width: 100%; min-width: 500px;
     font-size: 13px;
 }
 #vmTable th {
@@ -160,20 +178,17 @@ html, body { overflow: hidden; touch-action: manipulation; background: #000; }
 
 #vmTable td.editable { cursor: text; }
 #vmTable td.editable:hover { background: rgba(100,200,255,0.08) !important; outline: 1px dashed #8ef4; }
+/* Lock icon on non-admin editable cells */
+#vmTable td.locked { cursor: default; color: #666; }
+#vmTable td.locked:hover { background: none !important; outline: none !important; }
+
 #vmTable input.vm-cell-input {
     background: #0a0a1a; border: 1px solid #8ef; color: #fff;
     padding: 2px 5px; border-radius: 3px; font-size: 13px;
     width: 100%; min-width: 60px;
 }
-#vmTable select.vm-cell-input {
-    background: #0a0a1a; border: 1px solid #8ef; color: #fff;
-    padding: 2px 4px; border-radius: 3px; font-size: 13px;
-}
-
-/* rating stars */
 .vm-stars { color: #fc8; cursor: pointer; font-size: 15px; letter-spacing: 2px; }
 
-/* action cell buttons */
 .vm-action-btn {
     padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;
     border: 1px solid #555; background: #1e1e2e; color: #ccc; margin: 0 2px;
@@ -199,7 +214,40 @@ html, body { overflow: hidden; touch-action: manipulation; background: #000; }
 .vm-field-chip.dragging { opacity: 0.4; }
 .vm-field-chip.drag-over { border-color: #fc8; background: #3a2a0a; }
 
-#vmFieldPanel .vm-btn { align-self: center; }
+/* Admin login modal */
+#vmLoginModal {
+    display: none; position: fixed; inset: 0; z-index: 3000;
+    background: rgba(0,0,0,0.75); align-items: center; justify-content: center;
+}
+#vmLoginModal.open { display: flex; }
+#vmLoginBox {
+    background: #1a1a2e; border: 1px solid #555; border-radius: 12px;
+    padding: 28px 32px; min-width: 280px; display: flex; flex-direction: column; gap: 14px;
+}
+#vmLoginBox h3 { color: #8ef; font-size: 15px; }
+#vmLoginBox p  { color: #888; font-size: 12px; line-height: 1.5; }
+.vm-login-row { display: flex; flex-direction: column; gap: 4px; }
+.vm-login-row label { font-size: 12px; color: #aaa; }
+.vm-login-row input {
+    background: #0a0a1a; border: 1px solid #555; color: #fff;
+    padding: 7px 10px; border-radius: 6px; font-size: 14px;
+}
+.vm-login-row input:focus { border-color: #8ef; outline: none; }
+#vmLoginError { color: #f66; font-size: 12px; min-height: 16px; }
+.vm-login-btns { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* User selector panel (future multi-user) */
+#vmUserPanel {
+    display: none; padding: 10px 14px; background: #0a1a0a;
+    border-bottom: 1px solid #1a3a1a; flex-shrink: 0;
+    align-items: center; gap: 10px; flex-wrap: wrap;
+}
+#vmUserPanel.open { display: flex; }
+#vmUserPanel label { font-size: 12px; color: #afa; }
+#vmUserSelect {
+    background: #0a0a1a; border: 1px solid #3a5a3a; color: #fff;
+    padding: 4px 8px; border-radius: 5px; font-size: 13px; cursor: pointer;
+}
 
 /* status bar */
 #vmStatus {
@@ -211,8 +259,6 @@ html, body { overflow: hidden; touch-action: manipulation; background: #000; }
 </style>
 </head>
 <body>
-
-<div id="debugTimestamp"></div>
 
 <div id="rotateWrap">
     <canvas id="gameCanvas"></canvas>
@@ -227,6 +273,7 @@ html, body { overflow: hidden; touch-action: manipulation; background: #000; }
 
 <div id="menuWrap">
     <div id="menuPanel">
+        <div id="menuDateStamp"></div>
         <div class="menu-item" id="miPlay">Play Video</div>
         <div class="menu-divider"></div>
         <div class="menu-item" id="miYTasImage">YTpix</div>
@@ -244,9 +291,22 @@ html, body { overflow: hidden; touch-action: manipulation; background: #000; }
 <div id="vmOverlay">
     <div id="vmHeader">
         <h2>📋 Video Manager</h2>
+        <span id="vmAdminBadge">⚙ Admin</span>
+        <span id="vmUserBadge"></span>
         <div id="vmTabs"></div>
+        <button class="vm-btn" id="vmAdminLoginBtn">🔑 Admin</button>
+        <button class="vm-btn danger" id="vmAdminLogoutBtn" style="display:none">🔓 Logout</button>
         <button class="vm-btn" id="vmCloseBtn" style="margin-left:auto">✕ Close</button>
     </div>
+
+    <!-- Future: user selector panel (hidden until multi-user enabled) -->
+    <div id="vmUserPanel">
+        <label>User profile:</label>
+        <select id="vmUserSelect"></select>
+        <button class="vm-btn success" id="vmAddUserBtn">+ New User</button>
+        <button class="vm-btn danger"  id="vmDelUserBtn">− Remove User</button>
+    </div>
+
     <div id="vmToolbar">
         <button class="vm-btn" id="vmPlaySelBtn">▶ Play</button>
         <button class="vm-btn" id="vmYTpixSelBtn">🎯 YTpix</button>
@@ -256,7 +316,7 @@ html, body { overflow: hidden; touch-action: manipulation; background: #000; }
         <div id="vmSelInfo">0 selected</div>
     </div>
     <div id="vmFieldPanel">
-        <h3>Column Fields — drag to reorder, click ● to toggle visibility</h3>
+        <h3>Column Fields — drag to reorder · click ●/○ to show/hide</h3>
     </div>
     <div id="vmTableWrap">
         <table id="vmTable">
@@ -270,9 +330,34 @@ html, body { overflow: hidden; touch-action: manipulation; background: #000; }
     </div>
 </div>
 
+<!-- ── Admin Login Modal ──────────────────────────────────────────── -->
+<div id="vmLoginModal">
+    <div id="vmLoginBox">
+        <h3>🔑 Admin Sign In</h3>
+        <p>Admin access allows editing video metadata (start, end, tdiff, label, category)
+           and managing field layout. Regular users can set their own ratings and see their
+           own Last Used history.</p>
+        <div class="vm-login-row">
+            <label>Password</label>
+            <input type="password" id="vmLoginPwd" placeholder="Enter admin password" autocomplete="current-password">
+        </div>
+        <div id="vmLoginError"></div>
+        <div class="vm-login-btns">
+            <button class="vm-btn" id="vmLoginCancelBtn">Cancel</button>
+            <button class="vm-btn success" id="vmLoginSubmitBtn">Sign In</button>
+        </div>
+    </div>
+</div>
+
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
-document.getElementById("debugTimestamp").innerText = new Date().toLocaleString();
+// ── Date stamp in menu ─────────────────────────────────────────────
+(function(){
+    const d=new Date();
+    document.getElementById("menuDateStamp").textContent=
+        d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric",year:"numeric"})
+        +" "+d.toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"});
+})();
 
 // -- constants --------------------------------------------------------------
 const GRID_COLS=5,GRID_ROWS=5,GRID_LINES=4,IMG_PAD=6;
@@ -307,6 +392,35 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const rnd=n=>Math.floor(Math.random()*n);
 function afterTwoPaints(cb){ requestAnimationFrame(()=>requestAnimationFrame(cb)); }
 
+// ── Admin / user session ───────────────────────────────────────────────────
+// ADMIN_HASH: SHA-256 of your chosen password stored as hex.
+// To set a password: open browser console, run:
+//   crypto.subtle.digest('SHA-256', new TextEncoder().encode('yourpassword'))
+//     .then(b=>console.log([...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')))
+// Then paste the result as ADMIN_HASH below.
+// Default password is "admin" — change before deployment.
+const ADMIN_HASH="8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918";
+
+let vmIsAdmin=false;
+
+// Per-user data lives in localStorage under key "vmUser_<name>"
+// Each entry: { ratings:{}, lastUsed:{} }  keyed by "filename::vidId"
+const VM_DEFAULT_USER="Guest";
+let vmCurrentUser=VM_DEFAULT_USER;
+
+function vmUserKey(){ return "vmUser_"+vmCurrentUser; }
+function vmGetUserData(){
+    try{ return JSON.parse(localStorage.getItem(vmUserKey()))||{ratings:{},lastUsed:{}}; }
+    catch(e){ return {ratings:{},lastUsed:{}}; }
+}
+function vmSaveUserData(d){ try{ localStorage.setItem(vmUserKey(),JSON.stringify(d)); }catch(e){} }
+function vmVidKey(src,vid){ return src.filename+"::"+vid.id; }
+
+async function vmHashPassword(pwd){
+    const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(pwd));
+    return [...new Uint8Array(buf)].map(x=>x.toString(16).padStart(2,"0")).join("");
+}
+
 // -- crop -------------------------------------------------------------------
 function applyCrop(iframe,crop){
     if(!iframe) return;
@@ -315,7 +429,6 @@ function applyCrop(iframe,crop){
     iframe.style.width=(100/cw)+"%"; iframe.style.height=(100/ch)+"%";
     iframe.style.left=-(cL*100/cw)+"%"; iframe.style.top=-(cT*100/ch)+"%";
 }
-
 function buildSlotHTML(wrapId,playerDivId,coverId,hitId){
     const w=document.getElementById(wrapId);
     w.innerHTML=`<div id="${playerDivId}"></div><div class="yt-cover" id="${coverId}"></div>`
@@ -327,7 +440,6 @@ function positionWrap(id,rect){
     el.style.width=rect.w+"px"; el.style.height=rect.h+"px";
     el.style.display="block"; el.style.visibility="hidden";
 }
-
 function createFreezePlayer(divId,key,targetTime,vid,onReady){
     if(ytPlayers[key]){ ytPlayers[key].destroy(); ytPlayers[key]=null; }
     let revealed=false;
@@ -372,7 +484,7 @@ function startYTGame(vid){
     positionWrap("ytGameRight", slots.right);
     ytGameReadyCount=0;
     correctSide=Math.random()<0.5?"right":"left";
-    const timeT=vid.start||0, tdiff=vid.tdiff!==undefined?vid.tdiff:4, timeT2=timeT+tdiff;
+    const timeT=vid.start||0,tdiff=vid.tdiff!==undefined?vid.tdiff:4,timeT2=timeT+tdiff;
     function slotReady(){ ytGameReadyCount++; if(ytGameReadyCount===3) startYTGamePhase1(); }
     createFreezePlayer("ytPlayerCenter","center",timeT,vid,slotReady);
     if(correctSide==="right"){
@@ -554,8 +666,6 @@ document.getElementById("miHelp").addEventListener("pointerup",e=>{e.stopPropaga
 menuBtn.addEventListener("pointerup",e=>{e.stopPropagation();const isOpen=menuPanel.classList.toggle("open");menuBtn.classList.toggle("open",isOpen);if(!isOpen)collapseAllMenus();});
 menuPanel.addEventListener("pointerup",e=>e.stopPropagation());
 document.addEventListener("pointerup",e=>{if(menuPanel.classList.contains("open")){closeMenu();return;}if(isYTGameMode)return;handleTap(e.clientX,e.clientY);});
-
-// Ctrl+E hotkey opens manager
 document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key==="e"){e.preventDefault();vmOpen();}});
 
 // -- audio / image loading --------------------------------------------------
@@ -601,101 +711,129 @@ window.addEventListener("orientationchange",()=>{setTimeout(()=>{setupLayout();r
 // ═══════════════════════════════════════════════════════════════════
 // VIDEO MANAGER
 // ═══════════════════════════════════════════════════════════════════
-
-// Each source: { key, label, filename, videos[] }
 const vmSources=[];
-let vmActiveIdx=0;       // which tab/source is shown
-let vmSortCol=null;      // current sort column key
-let vmSortAsc=true;
-let vmSelected=new Set(); // selected row indices (into current source.videos)
-let vmLastClick=-1;
-let vmFieldPanelOpen=false;
-let vmDragKey=null;
+let vmActiveIdx=0;
+let vmSortCol=null,vmSortAsc=true;
+let vmSelected=new Set(),vmLastClick=-1;
+let vmFieldPanelOpen=false,vmDragKey=null;
 
-// Core fields always present; optional fields user can add/reorder
+// Fields: core (admin-editable), optional (user/admin), user-only (per-user localStorage)
 const VM_CORE_FIELDS=[
-    {key:"label",  label:"Label",   editable:true,  type:"text"},
-    {key:"id",     label:"YT ID",   editable:true,  type:"text"},
-    {key:"start",  label:"Start",   editable:true,  type:"number"},
-    {key:"end",    label:"End",     editable:true,  type:"number"},
-    {key:"tdiff",  label:"Tdiff",   editable:true,  type:"number"},
+    {key:"label",   label:"Label",  editable:"admin", type:"text"},
+    {key:"start",   label:"Start",  editable:"admin", type:"number"},
+    {key:"end",     label:"End",    editable:"admin", type:"number"},
+    {key:"tdiff",   label:"Tdiff",  editable:"admin", type:"number"},
 ];
 const VM_OPTIONAL_FIELDS=[
-    {key:"category", label:"Category", editable:true, type:"text",   optional:true},
-    {key:"rating",   label:"Rating",   editable:true, type:"rating", optional:true},
-    {key:"lastUsed", label:"Last Used",editable:false, type:"date",  optional:true},
+    {key:"category", label:"Category", editable:"admin", type:"text",   optional:true},
+    {key:"rating",   label:"Rating",   editable:"user",  type:"rating", optional:true, perUser:true},
+    {key:"lastUsed", label:"Last Used",editable:false,   type:"date",   optional:true, perUser:true},
 ];
 
-// Per-source field config stored in vmSources[i].fieldConfig = [{key,visible}...]
 function vmDefaultFieldConfig(){
-    return [
+    return[
         ...VM_CORE_FIELDS.map(f=>({key:f.key,visible:true})),
         ...VM_OPTIONAL_FIELDS.map(f=>({key:f.key,visible:false})),
     ];
 }
-function vmAllFieldDefs(){
-    return [...VM_CORE_FIELDS,...VM_OPTIONAL_FIELDS];
-}
-function vmFieldDef(key){ return vmAllFieldDefs().find(f=>f.key===key)||{key,label:key,editable:true,type:"text"}; }
-
+function vmAllFieldDefs(){ return[...VM_CORE_FIELDS,...VM_OPTIONAL_FIELDS]; }
+function vmFieldDef(key){ return vmAllFieldDefs().find(f=>f.key===key)||{key,label:key,editable:false,type:"text"}; }
 function vmGetSource(){ return vmSources[vmActiveIdx]||null; }
 function vmGetVideos(){ const s=vmGetSource(); return s?s.videos:[]; }
 
-// -- localStorage helpers ---------------------------------------------------
+// localStorage for shared video data (admin edits)
 function vmLsKey(filename){ return "vmData_"+filename; }
 function vmSaveLS(src){
-    try{
-        localStorage.setItem(vmLsKey(src.filename), JSON.stringify({videos:src.videos, fieldConfig:src.fieldConfig}));
-        vmUpdateStatus();
-    }catch(e){}
+    try{ localStorage.setItem(vmLsKey(src.filename),JSON.stringify({videos:src.videos,fieldConfig:src.fieldConfig})); vmUpdateStatus(); }catch(e){}
 }
 function vmLoadLS(src){
-    try{
-        const raw=localStorage.getItem(vmLsKey(src.filename));
-        if(!raw) return false;
-        const d=JSON.parse(raw);
-        if(d.videos) src.videos=d.videos;
-        if(d.fieldConfig) src.fieldConfig=d.fieldConfig;
-        return true;
-    }catch(e){ return false; }
+    try{ const raw=localStorage.getItem(vmLsKey(src.filename)); if(!raw)return false; const d=JSON.parse(raw); if(d.videos)src.videos=d.videos; if(d.fieldConfig)src.fieldConfig=d.fieldConfig; return true; }catch(e){ return false; }
 }
+
+// Per-user rating/lastUsed stored separately
+function vmGetUserVal(src,vid,key){
+    const d=vmGetUserData(); return d[key]?.[vmVidKey(src,vid)];
+}
+function vmSetUserVal(src,vid,key,val){
+    const d=vmGetUserData();
+    if(!d[key]) d[key]={};
+    d[key][vmVidKey(src,vid)]=val;
+    vmSaveUserData(d);
+}
+
 function vmUpdateStatus(){
     let info="";
-    vmSources.forEach(s=>{
-        const raw=localStorage.getItem(vmLsKey(s.filename));
-        if(raw) info+=s.label+" ✓  ";
-    });
+    vmSources.forEach(s=>{ if(localStorage.getItem(vmLsKey(s.filename))) info+=s.label+" ✓  "; });
     document.getElementById("vmLsInfo").textContent=info||"none";
     const src=vmGetSource();
-    if(src) document.getElementById("vmStatusLeft").textContent=
-        src.label+" — "+src.videos.length+" videos";
+    if(src) document.getElementById("vmStatusLeft").textContent=src.label+" — "+src.videos.length+" videos  (user: "+vmCurrentUser+")";
 }
 
-// -- stamp LastUsed on a video ----------------------------------------------
+// LastUsed stamp — always per-user
 function vmStampLastUsed(vid){
+    const stamp=new Date().toISOString().slice(0,16).replace("T"," ");
     vmSources.forEach(src=>{
-        const v=src.videos.find(v=>v.id===vid.id&&v.label===vid.label);
-        if(v){ v.lastUsed=new Date().toISOString().slice(0,16).replace("T"," "); vmSaveLS(src); }
+        const v=src.videos.find(v=>v.id===vid.id);
+        if(v) vmSetUserVal(src,v,"lastUsed",stamp);
     });
 }
 
-// -- open/close ------------------------------------------------------------
+// -- open / close -----------------------------------------------------------
 function vmOpen(){
     document.getElementById("vmOverlay").classList.add("open");
+    vmRefreshAdminUI();
     vmRenderTabs();
     vmRenderFieldPanel();
     vmRenderTable();
     vmUpdateStatus();
 }
-function vmClose(){
-    document.getElementById("vmOverlay").classList.remove("open");
-}
+function vmClose(){ document.getElementById("vmOverlay").classList.remove("open"); }
 document.getElementById("vmCloseBtn").addEventListener("click",vmClose);
+
+// -- admin login/logout -----------------------------------------------------
+function vmRefreshAdminUI(){
+    document.getElementById("vmAdminBadge").classList.toggle("visible",vmIsAdmin);
+    document.getElementById("vmAdminLogoutBtn").style.display=vmIsAdmin?"":"none";
+    document.getElementById("vmAdminLoginBtn").style.display=vmIsAdmin?"none":"";
+    document.getElementById("vmUserBadge").textContent="👤 "+vmCurrentUser;
+    document.getElementById("vmUserBadge").classList.add("visible");
+    // Export/Reset/Fields only for admin
+    ["vmExportBtn","vmResetBtn","vmFieldToggleBtn"].forEach(id=>{
+        document.getElementById(id).disabled=!vmIsAdmin;
+    });
+}
+
+document.getElementById("vmAdminLoginBtn").addEventListener("click",()=>{
+    document.getElementById("vmLoginModal").classList.add("open");
+    document.getElementById("vmLoginPwd").value="";
+    document.getElementById("vmLoginError").textContent="";
+    setTimeout(()=>document.getElementById("vmLoginPwd").focus(),100);
+});
+document.getElementById("vmAdminLogoutBtn").addEventListener("click",()=>{
+    vmIsAdmin=false; vmRefreshAdminUI(); vmRenderTable();
+});
+document.getElementById("vmLoginCancelBtn").addEventListener("click",()=>{
+    document.getElementById("vmLoginModal").classList.remove("open");
+});
+document.getElementById("vmLoginSubmitBtn").addEventListener("click",vmDoLogin);
+document.getElementById("vmLoginPwd").addEventListener("keydown",e=>{ if(e.key==="Enter") vmDoLogin(); });
+
+async function vmDoLogin(){
+    const pwd=document.getElementById("vmLoginPwd").value;
+    const hash=await vmHashPassword(pwd);
+    if(hash===ADMIN_HASH){
+        vmIsAdmin=true;
+        document.getElementById("vmLoginModal").classList.remove("open");
+        vmRefreshAdminUI(); vmRenderTable();
+    } else {
+        document.getElementById("vmLoginError").textContent="Incorrect password.";
+        document.getElementById("vmLoginPwd").select();
+    }
+}
 
 // -- tabs ------------------------------------------------------------------
 function vmRenderTabs(){
-    const el=document.getElementById("vmTabs");
-    el.innerHTML="";
+    const el=document.getElementById("vmTabs"); el.innerHTML="";
     vmSources.forEach((src,i)=>{
         const b=document.createElement("button");
         b.className="vm-tab"+(i===vmActiveIdx?" active":"");
@@ -710,71 +848,57 @@ function vmRenderFieldPanel(){
     const src=vmGetSource(); if(!src) return;
     const panel=document.getElementById("vmFieldPanel");
     panel.innerHTML='<h3>Column Fields — drag to reorder · click ●/○ to show/hide</h3>';
-
-    src.fieldConfig.forEach((fc,idx)=>{
+    src.fieldConfig.forEach((fc)=>{
         const def=vmFieldDef(fc.key);
         const chip=document.createElement("span");
         chip.className="vm-field-chip"+(fc.visible?" active-field":"");
-        chip.draggable=true;
-        chip.dataset.key=fc.key;
+        chip.draggable=true; chip.dataset.key=fc.key;
         chip.innerHTML=`<span class="chip-toggle">${fc.visible?"●":"○"}</span> ${def.label}`;
-        chip.addEventListener("click",()=>{
-            fc.visible=!fc.visible; vmSaveLS(src); vmRenderFieldPanel(); vmRenderTable();
-        });
-        chip.addEventListener("dragstart",e=>{ vmDragKey=fc.key; chip.classList.add("dragging"); });
-        chip.addEventListener("dragend",e=>{ chip.classList.remove("dragging"); vmDragKey=null; });
+        chip.addEventListener("click",()=>{ fc.visible=!fc.visible; vmSaveLS(src); vmRenderFieldPanel(); vmRenderTable(); });
+        chip.addEventListener("dragstart",()=>{ vmDragKey=fc.key; chip.classList.add("dragging"); });
+        chip.addEventListener("dragend",()=>{ chip.classList.remove("dragging"); vmDragKey=null; });
         chip.addEventListener("dragover",e=>{ e.preventDefault(); chip.classList.add("drag-over"); });
         chip.addEventListener("dragleave",()=>chip.classList.remove("drag-over"));
         chip.addEventListener("drop",e=>{
             e.preventDefault(); chip.classList.remove("drag-over");
             if(!vmDragKey||vmDragKey===fc.key) return;
-            const fromIdx=src.fieldConfig.findIndex(x=>x.key===vmDragKey);
-            const toIdx=src.fieldConfig.findIndex(x=>x.key===fc.key);
-            if(fromIdx<0||toIdx<0) return;
-            const [moved]=src.fieldConfig.splice(fromIdx,1);
-            src.fieldConfig.splice(toIdx,0,moved);
+            const fi=src.fieldConfig.findIndex(x=>x.key===vmDragKey);
+            const ti=src.fieldConfig.findIndex(x=>x.key===fc.key);
+            if(fi<0||ti<0) return;
+            const[moved]=src.fieldConfig.splice(fi,1); src.fieldConfig.splice(ti,0,moved);
             vmSaveLS(src); vmRenderFieldPanel(); vmRenderTable();
         });
         panel.appendChild(chip);
     });
-
-    // Add optional field buttons for ones not yet in config
     const existingKeys=src.fieldConfig.map(f=>f.key);
     VM_OPTIONAL_FIELDS.forEach(of=>{
         if(!existingKeys.includes(of.key)){
-            const btn=document.createElement("button");
-            btn.className="vm-btn success"; btn.style.fontSize="12px";
+            const btn=document.createElement("button"); btn.className="vm-btn success"; btn.style.fontSize="12px";
             btn.textContent="+ "+of.label;
-            btn.addEventListener("click",()=>{
-                src.fieldConfig.push({key:of.key,visible:true});
-                vmSaveLS(src); vmRenderFieldPanel(); vmRenderTable();
-            });
+            btn.addEventListener("click",()=>{ src.fieldConfig.push({key:of.key,visible:true}); vmSaveLS(src); vmRenderFieldPanel(); vmRenderTable(); });
             panel.appendChild(btn);
         }
     });
 }
-
 document.getElementById("vmFieldToggleBtn").addEventListener("click",()=>{
     vmFieldPanelOpen=!vmFieldPanelOpen;
     document.getElementById("vmFieldPanel").classList.toggle("open",vmFieldPanelOpen);
 });
 
-// -- table rendering -------------------------------------------------------
+// -- table -----------------------------------------------------------------
 function vmVisibleFields(){
-    const src=vmGetSource(); if(!src) return [];
+    const src=vmGetSource(); if(!src) return[];
     return src.fieldConfig.filter(fc=>fc.visible).map(fc=>vmFieldDef(fc.key));
 }
 
 function vmRenderTable(){
     const src=vmGetSource();
-    const thead=document.getElementById("vmThead");
-    const tbody=document.getElementById("vmTbody");
+    const thead=document.getElementById("vmThead"),tbody=document.getElementById("vmTbody");
     thead.innerHTML=""; tbody.innerHTML="";
     if(!src||!src.videos.length){ tbody.innerHTML='<tr><td colspan="99" style="color:#888;padding:20px">No videos in this source.</td></tr>'; return; }
-
     const fields=vmVisibleFields();
 
-    // Header
+    // Select-all checkbox header
     const chkTh=document.createElement("th"); chkTh.className="no-sort"; chkTh.style.width="32px";
     const chkAll=document.createElement("input"); chkAll.type="checkbox"; chkAll.title="Select all";
     chkAll.addEventListener("change",()=>{ if(chkAll.checked) src.videos.forEach((_,i)=>vmSelected.add(i)); else vmSelected.clear(); vmRenderTable(); });
@@ -783,165 +907,173 @@ function vmRenderTable(){
     fields.forEach(f=>{
         const th=document.createElement("th"); th.textContent=f.label;
         if(f.key===vmSortCol) th.classList.add(vmSortAsc?"sort-asc":"sort-desc");
-        th.addEventListener("click",()=>{
-            if(vmSortCol===f.key) vmSortAsc=!vmSortAsc; else{ vmSortCol=f.key; vmSortAsc=true; }
-            vmSortVideos(src); vmRenderTable();
-        });
+        th.addEventListener("click",()=>{ if(vmSortCol===f.key) vmSortAsc=!vmSortAsc; else{ vmSortCol=f.key; vmSortAsc=true; } vmSortVideos(src); vmRenderTable(); });
         thead.appendChild(th);
     });
     const actTh=document.createElement("th"); actTh.className="no-sort"; actTh.textContent="Actions"; thead.appendChild(actTh);
 
-    // Sort
     if(vmSortCol) vmSortVideos(src);
 
-    // Rows
     src.videos.forEach((vid,i)=>{
         const tr=document.createElement("tr"); tr.className="vm-row"+(vmSelected.has(i)?" selected":"");
 
-        // Checkbox cell
         const chkTd=document.createElement("td");
         const chk=document.createElement("input"); chk.type="checkbox"; chk.checked=vmSelected.has(i);
         chk.addEventListener("change",e=>{ e.stopPropagation(); if(chk.checked) vmSelected.add(i); else vmSelected.delete(i); vmUpdateSelInfo(); tr.classList.toggle("selected",vmSelected.has(i)); });
         chkTd.appendChild(chk); tr.appendChild(chkTd);
 
-        // Row click for selection (Windows-style)
         tr.addEventListener("click",e=>{
             if(e.target.tagName==="INPUT"||e.target.tagName==="BUTTON"||e.target.tagName==="SELECT") return;
-            if(e.shiftKey&&vmLastClick>=0){
-                const lo=Math.min(i,vmLastClick),hi=Math.max(i,vmLastClick);
-                for(let x=lo;x<=hi;x++) vmSelected.add(x);
-            } else if(e.ctrlKey||e.metaKey){
-                if(vmSelected.has(i)) vmSelected.delete(i); else vmSelected.add(i);
-            } else {
-                vmSelected.clear(); vmSelected.add(i);
-            }
+            if(e.shiftKey&&vmLastClick>=0){ const lo=Math.min(i,vmLastClick),hi=Math.max(i,vmLastClick); for(let x=lo;x<=hi;x++) vmSelected.add(x); }
+            else if(e.ctrlKey||e.metaKey){ if(vmSelected.has(i)) vmSelected.delete(i); else vmSelected.add(i); }
+            else{ vmSelected.clear(); vmSelected.add(i); }
             vmLastClick=i; vmRenderTable();
         });
         tr.addEventListener("dblclick",()=>{ vmClose(); openVideo(vid); });
 
-        // Data cells
         fields.forEach(f=>{
             const td=document.createElement("td");
-            if(f.editable) td.className="editable";
+            const def=vmFieldDef(f.key);
 
-            if(f.type==="rating"){
-                td.className=""; // rating handled specially
+            if(def.perUser){
+                // Read from per-user localStorage
+                const uVal=vmGetUserVal(src,vid,f.key);
+                if(f.type==="rating"){
+                    const val=uVal||0;
+                    const stars=document.createElement("span"); stars.className="vm-stars";
+                    stars.textContent="★".repeat(val)+"☆".repeat(5-val);
+                    stars.title="Click to rate";
+                    stars.addEventListener("click",e=>{
+                        e.stopPropagation();
+                        const rect=stars.getBoundingClientRect();
+                        const newVal=Math.ceil(((e.clientX-rect.left)/rect.width)*5);
+                        vmSetUserVal(src,vid,f.key,newVal);
+                        stars.textContent="★".repeat(newVal)+"☆".repeat(5-newVal);
+                    });
+                    td.appendChild(stars);
+                } else {
+                    td.textContent=uVal||"";
+                    td.style.color="#888"; td.title="Auto-populated on play";
+                }
+            } else if(f.type==="rating"){
+                // Shared rating (admin can edit)
                 const val=vid[f.key]||0;
                 const stars=document.createElement("span"); stars.className="vm-stars";
                 stars.textContent="★".repeat(val)+"☆".repeat(5-val);
-                stars.addEventListener("click",e=>{
-                    e.stopPropagation();
-                    // click position within span determines star count
-                    const rect=stars.getBoundingClientRect();
-                    const pct=(e.clientX-rect.left)/rect.width;
-                    const newVal=Math.ceil(pct*5); vid[f.key]=newVal;
-                    stars.textContent="★".repeat(newVal)+"☆".repeat(5-newVal);
-                    vmSaveLS(src);
-                });
+                if(vmIsAdmin){
+                    stars.addEventListener("click",e=>{
+                        e.stopPropagation();
+                        const rect=stars.getBoundingClientRect();
+                        const newVal=Math.ceil(((e.clientX-rect.left)/rect.width)*5);
+                        vid[f.key]=newVal; vmSaveLS(src);
+                        stars.textContent="★".repeat(newVal)+"☆".repeat(5-newVal);
+                    });
+                }
                 td.appendChild(stars);
             } else {
-                const disp=vid[f.key]!==undefined?String(vid[f.key]):"";
-                td.textContent=disp;
-                if(f.editable){
-                    td.addEventListener("click",e=>{ e.stopPropagation(); vmStartEdit(td,vid,f,src); });
-                }
+                // Text/number field
+                const dispVal=vid[f.key]!==undefined?String(vid[f.key]):"";
+                const canEdit=(def.editable==="admin"&&vmIsAdmin)||(def.editable==="user");
+                td.textContent=dispVal;
+                if(canEdit){ td.className="editable"; td.addEventListener("click",e=>{ e.stopPropagation(); vmStartEdit(td,vid,def,src); }); }
+                else td.className="locked";
             }
             tr.appendChild(td);
         });
 
-        // Actions cell
         const actTd=document.createElement("td");
         const bPlay=document.createElement("button"); bPlay.className="vm-action-btn"; bPlay.textContent="▶ Play";
         bPlay.addEventListener("click",e=>{ e.stopPropagation(); vmClose(); openVideo(vid); });
         const bYT=document.createElement("button"); bYT.className="vm-action-btn"; bYT.textContent="🎯 YTpix";
         bYT.addEventListener("click",e=>{ e.stopPropagation(); vmClose(); startYTGame(vid); });
         actTd.appendChild(bPlay); actTd.appendChild(bYT); tr.appendChild(actTd);
-
         tbody.appendChild(tr);
     });
-
     vmUpdateSelInfo();
 }
 
 function vmSortVideos(src){
     if(!vmSortCol) return;
+    const def=vmFieldDef(vmSortCol);
     src.videos.sort((a,b)=>{
-        let av=a[vmSortCol]??"", bv=b[vmSortCol]??"";
+        let av,bv;
+        if(def.perUser){
+            av=vmGetUserVal(src,a,vmSortCol)??"";
+            bv=vmGetUserVal(src,b,vmSortCol)??"";
+        } else {
+            av=a[vmSortCol]??""; bv=b[vmSortCol]??"";
+        }
         if(!isNaN(parseFloat(av))&&!isNaN(parseFloat(bv))){ av=parseFloat(av); bv=parseFloat(bv); }
         else{ av=String(av).toLowerCase(); bv=String(bv).toLowerCase(); }
         return vmSortAsc?(av<bv?-1:av>bv?1:0):(av>bv?-1:av<bv?1:0);
     });
 }
+function vmUpdateSelInfo(){ document.getElementById("vmSelInfo").textContent=vmSelected.size+" selected / "+vmGetVideos().length+" total"; }
 
-function vmUpdateSelInfo(){
-    document.getElementById("vmSelInfo").textContent=
-        vmSelected.size+" selected / "+vmGetVideos().length+" total";
-}
-
-// -- inline cell editing ---------------------------------------------------
+// -- inline editing --------------------------------------------------------
 function vmStartEdit(td,vid,field,src){
-    if(td.querySelector("input,select")) return; // already editing
-    const prev=td.textContent;
-    td.textContent="";
-    let inp;
-    if(field.type==="number"){
-        inp=document.createElement("input"); inp.type="number"; inp.step="0.1";
-        inp.value=vid[field.key]!==undefined?vid[field.key]:"";
-    } else {
-        inp=document.createElement("input"); inp.type="text";
-        inp.value=vid[field.key]!==undefined?vid[field.key]:"";
-    }
+    if(td.querySelector("input")) return;
+    const prev=td.textContent; td.textContent="";
+    const inp=document.createElement("input");
+    inp.type=field.type==="number"?"number":"text";
+    if(field.type==="number") inp.step="0.1";
+    inp.value=vid[field.key]!==undefined?vid[field.key]:"";
     inp.className="vm-cell-input";
     function commit(){
         let val=inp.value.trim();
         if(field.type==="number"){ val=val===""?undefined:parseFloat(val); }
         if(val===undefined) delete vid[field.key]; else vid[field.key]=val;
-        vmSaveLS(src);
-        // sync back to allVideos/allTTVideos so hamburger menu reflects changes
-        vmSyncToRuntime(src);
+        vmSaveLS(src); vmSyncToRuntime(src);
         td.textContent=val!==undefined?String(val):"";
         td.className="editable";
-        // rebuild menus so label changes appear
         buildVideoMenus(); buildTTMenus();
     }
     inp.addEventListener("blur",commit);
-    inp.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); inp.blur(); } if(e.key==="Escape"){ td.textContent=prev; } });
+    inp.addEventListener("keydown",e=>{ if(e.key==="Enter"){e.preventDefault();inp.blur();} if(e.key==="Escape"){td.textContent=prev;td.className="editable";} });
     td.appendChild(inp); inp.focus(); inp.select();
 }
-
-// Sync edited vmSource videos back into allVideos / allTTVideos
 function vmSyncToRuntime(src){
     if(src.filename==="yt.json") allVideos=src.videos;
     else if(src.filename==="@PechPongTT.short.json") allTTVideos=src.videos;
 }
 
-// -- toolbar actions -------------------------------------------------------
+// -- toolbar ---------------------------------------------------------------
 document.getElementById("vmPlaySelBtn").addEventListener("click",()=>{
     const src=vmGetSource(); if(!src) return;
-    const idxs=[...vmSelected];
-    if(!idxs.length){ alert("Select at least one video first."); return; }
+    const idxs=[...vmSelected]; if(!idxs.length){alert("Select at least one video first.");return;}
     vmClose(); openVideo(src.videos[idxs[0]]);
 });
 document.getElementById("vmYTpixSelBtn").addEventListener("click",()=>{
     const src=vmGetSource(); if(!src) return;
-    const idxs=[...vmSelected];
-    if(!idxs.length){ alert("Select at least one video first."); return; }
+    const idxs=[...vmSelected]; if(!idxs.length){alert("Select at least one video first.");return;}
     vmClose(); startYTGame(src.videos[idxs[0]]);
 });
 document.getElementById("vmExportBtn").addEventListener("click",()=>{
     const src=vmGetSource(); if(!src) return;
     const blob=new Blob([JSON.stringify({videos:src.videos},null,2)],{type:"application/json"});
-    const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
-    a.download=src.filename; a.click(); URL.revokeObjectURL(a.href);
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=src.filename; a.click(); URL.revokeObjectURL(a.href);
 });
 document.getElementById("vmResetBtn").addEventListener("click",()=>{
     const src=vmGetSource(); if(!src) return;
-    if(!confirm("Reset '"+src.label+"' to last fetched data? localStorage override will be cleared.")) return;
+    if(!confirm("Reset '"+src.label+"' to last fetched data?")) return;
     localStorage.removeItem(vmLsKey(src.filename));
     src.videos=JSON.parse(JSON.stringify(src._original));
     src.fieldConfig=vmDefaultFieldConfig();
     vmSyncToRuntime(src); buildVideoMenus(); buildTTMenus();
     vmRenderFieldPanel(); vmRenderTable(); vmUpdateStatus();
+});
+
+// Future multi-user UI hooks (wired but user panel hidden until enabled)
+document.getElementById("vmAddUserBtn").addEventListener("click",()=>{
+    const name=prompt("Enter new user name:");
+    if(!name||!name.trim()) return;
+    vmCurrentUser=name.trim(); vmRefreshAdminUI(); vmRenderTable(); vmUpdateStatus();
+});
+document.getElementById("vmDelUserBtn").addEventListener("click",()=>{
+    if(vmCurrentUser===VM_DEFAULT_USER){alert("Cannot remove default user.");return;}
+    if(!confirm("Remove user '"+vmCurrentUser+"' and their data?")) return;
+    localStorage.removeItem(vmUserKey());
+    vmCurrentUser=VM_DEFAULT_USER; vmRefreshAdminUI(); vmRenderTable(); vmUpdateStatus();
 });
 
 // ═══════════════════════════════════════════════════════════════════
@@ -954,19 +1086,13 @@ Promise.all([
 ]).then(([assetData,ytData,ttData])=>{
     allSets=assetData.sets||[]; allVideos=ytData.videos||[]; allTTVideos=ttData.videos||[];
     if(!allSets.length) throw new Error("No sets in assets.json");
-
-    // Register VM sources
     vmSources.length=0;
     [{label:"YT Videos",filename:"yt.json",videos:allVideos},
      {label:"PlayTT",   filename:"@PechPongTT.short.json",videos:allTTVideos}
     ].forEach(s=>{
-        const src={...s, _original:JSON.parse(JSON.stringify(s.videos)), fieldConfig:vmDefaultFieldConfig()};
-        // Try loading localStorage overrides
-        vmLoadLS(src);
-        vmSyncToRuntime(src);
-        vmSources.push(src);
+        const src={...s,_original:JSON.parse(JSON.stringify(s.videos)),fieldConfig:vmDefaultFieldConfig()};
+        vmLoadLS(src); vmSyncToRuntime(src); vmSources.push(src);
     });
-
     activeSetIndex=0; buildMenuItems(); buildVideoMenus(); buildTTMenus();
     loadSet(allSets[0],()=>{setupLayout();render();phaseOne();});
 }).catch(err=>{
