@@ -13,452 +13,704 @@
         #rotateWrap { position: fixed; top: 0; left: 0; }
         #gameCanvas { display: block; }
 
-        #debugTimestamp {
-            position: absolute; top: 10px; left: 10px; z-index: 9999;
-            color: #ff0; font: bold 16px monospace; background: rgba(0,0,0,0.8);
-            padding: 6px 12px; border-radius: 6px; border: 2px solid #ff0;
-            pointer-events: none;
-        }
-
-        #menuWrap { position: fixed; z-index: 999; width: 48px; height: 48px; }
-        #menuWrap.portrait-mode { transform: rotate(90deg); transform-origin: 24px 24px; }
         #menuBtn {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(30,30,30,0.82); border: none; border-radius: 10px; cursor: pointer;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            gap: 6px; padding: 10px; touch-action: manipulation;
+            position: fixed;
+            bottom: 14px; right: 14px;
+            z-index: 999;
+            width: 48px; height: 48px;
+            background: rgba(30,30,30,0.82);
+            border: none; border-radius: 10px;
+            cursor: pointer;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 6px; padding: 10px;
+            touch-action: manipulation;
         }
+        #menuBtn span { display:block; width:100%; height:3px; background:#fff; border-radius:2px; }
         #menuBtn.open { background: rgba(30,30,30,0.97); }
-        #menuBtn span { display: block; width: 100%; height: 3px; background: #fff; border-radius: 2px; }
 
         #menuPanel {
-            position: absolute; bottom: 54px; right: 0; z-index: 998;
-            background: rgba(25,25,25,0.96); border-radius: 10px;
-            overflow-y: auto; max-height: 80vh;
-            display: none; flex-direction: column; min-width: 200px;
+            position: fixed;
+            bottom: 70px; right: 14px;
+            z-index: 998;
+            background: rgba(25,25,25,0.96);
+            border-radius: 10px; overflow: hidden;
+            display: none; flex-direction: column;
+            min-width: 210px;
             box-shadow: 0 4px 24px rgba(0,0,0,0.5);
-            scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.3) transparent;
         }
-        #menuPanel::-webkit-scrollbar { width: 6px; }
-        #menuPanel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 3px; }
         #menuPanel.open { display: flex; }
 
         .menu-item {
-            padding: 13px 18px; color: #fff; font: 15px Arial, sans-serif;
-            cursor: pointer; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,0.08); flex-shrink: 0;
+            padding: 13px 18px; color: #fff;
+            font: 15px Arial, sans-serif;
+            cursor: pointer; white-space: nowrap;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
         }
         .menu-item:last-child { border-bottom: none; }
         .menu-item:hover, .menu-item:active { background: rgba(255,255,255,0.12); }
         .menu-item.active-set { color: #6f6; }
-        .menu-divider { height: 1px; background: rgba(255,255,255,0.15); margin: 2px 0; flex-shrink: 0; }
+        .menu-divider { height:1px; background:rgba(255,255,255,0.18); margin:2px 0; }
 
-        .video-sub, .ytimg-sub {
-            padding: 10px 18px 10px 30px; font: 14px Arial, sans-serif; cursor: pointer; white-space: nowrap;
-            border-bottom: 1px solid rgba(255,255,255,0.05); display: none; flex-shrink: 0;
+        /* Video sub-items — indented, teal tint */
+        .video-choice {
+            padding: 10px 18px 10px 32px;
+            color: #7df;
+            font: 14px Arial, sans-serif;
+            cursor: pointer; white-space: nowrap;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            display: none;   /* shown when Play is expanded */
         }
-        .video-sub { color: #8ef; } .ytimg-sub { color: #f88; }
-        .video-sub.visible, .ytimg-sub.visible { display: block; }
-        .video-sub:hover, .video-sub:active { background: rgba(100,200,255,0.1); }
-        .ytimg-sub:hover, .ytimg-sub:active { background: rgba(255,100,100,0.1); }
+        .video-choice:hover, .video-choice:active { background: rgba(100,200,255,0.12); }
+        #menuPanel.videos-open .video-choice { display: block; }
+        #miPlay.expanded { color: #7df; }
 
-        #videoWrap { display: none; position: absolute; z-index: 10; overflow: hidden; }
+        /* videoWrap — NO background, so canvas grid shows through */
+        #videoWrap {
+            display: none;
+            position: absolute;
+            z-index: 10;
+            overflow: hidden;
+            background: transparent;
+        }
         #videoWrap.open { display: block; }
-        #ytDiv { position: absolute; top: 0; left: 0; pointer-events: auto; }
-
-        .yt-game-wrap {
-            position: absolute; z-index: 10;
-            overflow: hidden; background: #000;
-            border: 2px solid #333; box-sizing: border-box;
-            visibility: hidden;
-        }
-        .yt-game-wrap iframe {
-            position: absolute; pointer-events: none; border: 0;
-        }
-        /* Cover sits above iframe, removed once frame settles */
-        .yt-cover {
-            position: absolute; inset: 0; background: #000; z-index: 5;
-        }
-        .yt-hitbox {
-            position: absolute; inset: 0; z-index: 6; cursor: pointer;
-        }
+        #ytDiv { position: absolute; top:0; left:0; }
 
         #closeVideoBtn {
-            position: absolute; top: 4px; right: 4px; z-index: 20;
-            background: rgba(20,20,20,0.85); color: #fff; border: none; border-radius: 6px;
-            font-size: 16px; width: 28px; height: 28px; cursor: pointer;
-            display: flex; align-items: center; justify-content: center; touch-action: manipulation;
+            position: absolute;
+            top: 4px; right: 4px; z-index: 20;
+            background: rgba(20,20,20,0.85);
+            color: #fff; border: none; border-radius: 6px;
+            font-size: 16px; width: 28px; height: 28px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            touch-action: manipulation;
         }
     </style>
 </head>
 <body>
 
-<div id="debugTimestamp"></div>
-
 <div id="rotateWrap">
     <canvas id="gameCanvas"></canvas>
     <div id="videoWrap">
         <div id="ytDiv"></div>
-        <button id="closeVideoBtn">X</button>
+        <button id="closeVideoBtn" aria-label="Close">X</button>
     </div>
-    <div id="ytGameCenter" class="yt-game-wrap"></div>
-    <div id="ytGameLeft"   class="yt-game-wrap"></div>
-    <div id="ytGameRight"  class="yt-game-wrap"></div>
 </div>
 
-<div id="menuWrap">
-    <div id="menuPanel">
-        <div class="menu-item" id="miPlay">Play Video</div>
-        <div class="menu-divider"></div>
-        <div class="menu-item" id="miYTasImage">YTpix</div>
-        <div class="menu-divider"></div>
-        <div class="menu-item" id="miConfig">Config</div>
-        <div class="menu-item" id="miHelp">Help</div>
-        <div class="menu-divider"></div>
-    </div>
-    <button id="menuBtn"><span></span><span></span><span></span></button>
+<button id="menuBtn" aria-label="Menu">
+    <span></span><span></span><span></span>
+</button>
+
+<div id="menuPanel">
+    <div class="menu-item" id="miPlay">Play</div>
+    <!-- video choices injected here by buildVideoMenu(), hidden until expanded -->
+    <div class="menu-divider"></div>
+    <div class="menu-item" id="miConfig">Config</div>
+    <div class="menu-item" id="miHelp">Help</div>
+    <div class="menu-divider" id="miSetDivider"></div>
+    <!-- set items appended here -->
 </div>
 
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
-document.getElementById("debugTimestamp").innerText = new Date().toLocaleString();
+    // ============================================================
+    // Asset arrays
+    // ============================================================
+    let IMAGE_URLS  = [];
+    let IMAGE_NAMES = [];
+    let AUDIO_FILES = [];
+    let allSets        = [];
+    let activeSetIndex = 0;
+    let allVideos      = [];   // from youtube.json
 
-const GRID_COLS=5,GRID_ROWS=5,GRID_LINES=4,IMG_PAD=6;
-const SHOW_SINGLE_MS=1000,GAP_BEFORE_PAIR=500,CORRECT_FLASH_MS=1500;
-const INCORRECT_MS=3000,WRONG_IMG_MS=500;
+    const GRID_LINES       = 4;
+    const GRID_COLS        = GRID_LINES + 1;
+    const GRID_ROWS        = GRID_LINES + 1;
+    const SHOW_SINGLE_MS   = 1000;
+    const GAP_BEFORE_PAIR  = 500;
+    const CORRECT_FLASH_MS = 1500;
+    const INCORRECT_MS     = 3000;
+    const WRONG_IMG_MS     = 500;
+    const IMG_PAD          = 6;
 
-let GW,GH,cellW,cellH,imgW,imgH,isPortrait,bgColor;
-const canvas=document.getElementById("gameCanvas"),ctx=canvas.getContext("2d");
-const wrap=document.getElementById("rotateWrap");
-const menuWrap=document.getElementById("menuWrap"),menuBtn=document.getElementById("menuBtn"),menuPanel=document.getElementById("menuPanel");
+    let canvas    = document.getElementById("gameCanvas");
+    let ctx       = canvas.getContext("2d");
+    let wrap      = document.getElementById("rotateWrap");
+    let menuBtn   = document.getElementById("menuBtn");
+    let menuPanel = document.getElementById("menuPanel");
 
-let IMAGE_URLS=[],IMAGE_NAMES=[],AUDIO_FILES=[],allSets=[],activeSetIndex=0,allVideos=[];
-let loadedImages=[],clickPhase=0,correctRegion=0,correctImgName="",correctImgIndex=0,correctSide="",gameActive=false;
-let slots={single:null,left:null,right:null},slotImg={single:null,left:null,right:null},slotVis={single:false,left:false,right:false};
-let bigSlot=null,bigImg=null,bigVis=false,hintVisible=false,hintImg=null,hintRegion=0;
-let nameBelowVisible=false,nameBelowText="",feedbackVisible=false,feedbackText="",currentAudio=null;
+    let GW, GH, cellW, cellH, imgW, imgH;
+    let isPortrait, bgColor;
 
-let isYTGameMode=false,ytGameVideo=null,ytGameReadyCount=0;
-let ytPlayers={center:null,left:null,right:null};
-let playExpanded=false,ytimgExpanded=false;
-let ytAPIReady=false;
-window.onYouTubeIframeAPIReady=()=>{ ytAPIReady=true; };
+    let loadedImages    = [];
+    let clickPhase      = 0;
+    let correctRegion   = 0, correctImgName = "";
+    let correctImgIndex = 0;
+    let correctSide     = "", gameActive = false;
+    let slots   = { single:null, left:null, right:null };
+    let slotImg = { single:null, left:null, right:null };
+    let slotVis = { single:false, left:false, right:false };
+    let bigSlot = null, bigImg = null, bigVis = false;
+    let hintVisible = false, hintImg = null, hintRegion = 0;
+    let nameBelowVisible = false, nameBelowText = "";
+    let feedbackVisible  = false, feedbackText  = "";
+    let currentAudio     = null;
 
-const centerIdx=((Math.ceil(GRID_ROWS/2)-1)*GRID_COLS)+Math.ceil(GRID_COLS/2);
-const leftIdx=centerIdx-1,rightIdx=centerIdx+1;
+    // -------------------------------------------------------
+    // VIDEO
+    // -------------------------------------------------------
+    const videoWrap     = document.getElementById("videoWrap");
+    const closeVideoBtn = document.getElementById("closeVideoBtn");
 
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const rnd=n=>Math.floor(Math.random()*n);
+    let ytPlayer     = null;
+    let ytAPIReady   = false;
+    let loopInterval = null;
+    let seekDebounce = false;
+    let currentVideo = null;
+    let videoOpen    = false;
 
-// Apply crop: scales iframe so only [L,T,R,B] fraction is visible in the overflow:hidden wrapper
-function applyCrop(iframe, crop){
-    if(!iframe) return;
-    const [cL,cT,cR,cB]=crop||[0,0,1,1];
-    const cw=Math.max(cR-cL,0.01), ch=Math.max(cB-cT,0.01);
-    iframe.style.width =(100/cw)+"%";
-    iframe.style.height=(100/ch)+"%";
-    iframe.style.left  =-(cL*100/cw)+"%";
-    iframe.style.top   =-(cT*100/ch)+"%";
-}
+    window.onYouTubeIframeAPIReady = function() { ytAPIReady = true; };
 
-function buildSlotHTML(wrapId,playerDivId,coverId,hitId){
-    const w=document.getElementById(wrapId);
-    w.innerHTML=`<div id="${playerDivId}"></div><div class="yt-cover" id="${coverId}"></div>`
-               +(hitId?`<div class="yt-hitbox" id="${hitId}"></div>`:"");
-}
-
-function positionWrap(id,rect){
-    const el=document.getElementById(id);
-    el.style.left=rect.x+"px"; el.style.top=rect.y+"px";
-    el.style.width=rect.w+"px"; el.style.height=rect.h+"px";
-    el.style.display="block";
-    el.style.visibility="hidden"; // Loads at full speed, invisible until ready
-}
-
-function createFreezePlayer(divId,key,targetTime,vid,onReady){
-    if(ytPlayers[key]){ ytPlayers[key].destroy(); ytPlayers[key]=null; }
-    let revealed=false;
-
-    function revealNow(){
-        if(revealed) return;
-        revealed=true;
-        // Single rAF � fastest possible: next paint cycle after frame is composited
-        requestAnimationFrame(()=>{
-            const cover=document.getElementById("cover_"+key);
-            if(cover) cover.remove();
-            onReady();
+    // Build video sub-items inside menuPanel, hidden by default
+    function buildVideoMenu() {
+        document.querySelectorAll(".video-choice").forEach(el => el.remove());
+        let insertBefore = document.querySelector(".menu-divider");
+        allVideos.forEach((vid, i) => {
+            let el = document.createElement("div");
+            el.className = "video-choice";
+            el.textContent = "  > " + (vid.label || ("Video " + (i+1)));
+            el.addEventListener("pointerup", e => {
+                e.stopPropagation();
+                collapseVideoList();
+                closeMenu();
+                openVideo(vid);
+            });
+            menuPanel.insertBefore(el, insertBefore);
         });
     }
 
-    ytPlayers[key]=new YT.Player(divId,{
-        videoId:vid.id,
-        playerVars:{
-            autoplay:1, controls:0, disablekb:1, modestbranding:1,
-            rel:0, showinfo:0, mute:1, start:targetTime, playsinline:1
-        },
-        events:{
-            onReady(e){
-                e.target.mute();
-                applyCrop(e.target.getIframe(), vid.crop);
+    let videosExpanded = false;
+    function toggleVideoList() {
+        videosExpanded = !videosExpanded;
+        if (videosExpanded) {
+            menuPanel.classList.add("videos-open");
+            document.getElementById("miPlay").classList.add("expanded");
+        } else {
+            collapseVideoList();
+        }
+    }
+    function collapseVideoList() {
+        videosExpanded = false;
+        menuPanel.classList.remove("videos-open");
+        let miPlay = document.getElementById("miPlay");
+        if (miPlay) miPlay.classList.remove("expanded");
+    }
+
+    function positionVideoWrap() {
+        let cx = Math.floor(cellW * 2);
+        let cy = Math.floor(cellH * 1);
+        let cw = Math.floor(cellW);
+        let ch = Math.floor(cellH * 3);
+        videoWrap.style.left   = cx + "px";
+        videoWrap.style.top    = cy + "px";
+        videoWrap.style.width  = cw + "px";
+        videoWrap.style.height = ch + "px";
+
+        if (ytPlayer && ytPlayer.getIframe) {
+            let fw = Math.round(ch * 16 / 9);
+            let fx = Math.round((cw - fw) / 2);
+            let iframe = ytPlayer.getIframe();
+            iframe.style.position = "absolute";
+            iframe.style.width    = fw + "px";
+            iframe.style.height   = ch + "px";
+            iframe.style.left     = fx + "px";
+            iframe.style.top      = "0px";
+        }
+    }
+
+    function openVideo(vid) {
+        currentVideo = vid;
+        videoOpen    = true;
+        setupLayout();
+
+        let cw = Math.floor(cellW);
+        let ch = Math.floor(cellH * 3);
+        let fw = Math.round(ch * 16 / 9);
+        let fx = Math.round((cw - fw) / 2);
+        let cx = Math.floor(cellW * 2);
+        let cy = Math.floor(cellH * 1);
+
+        videoWrap.style.left   = cx + "px";
+        videoWrap.style.top    = cy + "px";
+        videoWrap.style.width  = cw + "px";
+        videoWrap.style.height = ch + "px";
+        videoWrap.classList.add("open");
+
+        // Render grid only (no game images) so background shows through video
+        renderGridOnly();
+
+        function applyIframeSize() {
+            let iframe = ytPlayer.getIframe();
+            iframe.style.position = "absolute";
+            iframe.style.width    = fw + "px";
+            iframe.style.height   = ch + "px";
+            iframe.style.left     = fx + "px";
+            iframe.style.top      = "0px";
+        }
+
+        if (ytPlayer) {
+            applyIframeSize();
+            ytPlayer.loadVideoById({ videoId: vid.id, startSeconds: vid.start });
+            startLoopWatcher();
+            return;
+        }
+
+        if (!ytAPIReady) { setTimeout(() => openVideo(vid), 300); return; }
+
+        // Recreate placeholder div if needed
+        let ytDiv = document.getElementById("ytDiv");
+        if (!ytDiv) {
+            ytDiv = document.createElement("div");
+            ytDiv.id = "ytDiv";
+            videoWrap.insertBefore(ytDiv, closeVideoBtn);
+        }
+
+        ytPlayer = new YT.Player("ytDiv", {
+            width:   fw,
+            height:  ch,
+            videoId: vid.id,
+            playerVars: {
+                autoplay:       1,
+                start:          vid.start,
+                controls:       0,
+                rel:            0,
+                modestbranding: 1,
+                playsinline:    1,
+                enablejsapi:    1
             },
-            onStateChange(e){
-                applyCrop(e.target.getIframe(), vid.crop);
-                if(e.data===YT.PlayerState.PLAYING){
-                    e.target.pauseVideo();
-                } else if(e.data===YT.PlayerState.PAUSED){
-                    revealNow();
+            events: {
+                onReady: function(e) {
+                    applyIframeSize();
+                    e.target.playVideo();
+                    startLoopWatcher();
+                },
+                onStateChange: function(e) {
+                    if (e.data === YT.PlayerState.ENDED) doSeekLoop();
                 }
             }
+        });
+    }
+
+    function doSeekLoop() {
+        if (!currentVideo || seekDebounce) return;
+        seekDebounce = true;
+        ytPlayer.seekTo(currentVideo.start, true);
+        ytPlayer.playVideo();
+        setTimeout(() => { seekDebounce = false; }, 800);
+    }
+
+    function startLoopWatcher() {
+        if (loopInterval) clearInterval(loopInterval);
+        loopInterval = setInterval(() => {
+            if (!videoOpen) return;
+            if (!ytPlayer || typeof ytPlayer.getCurrentTime !== "function") return;
+            try {
+                let t = ytPlayer.getCurrentTime();
+                if (!seekDebounce && currentVideo && t >= currentVideo.end) doSeekLoop();
+            } catch(e) {}
+        }, 250);
+    }
+
+    function closeVideo() {
+        videoOpen = false;
+        videoWrap.classList.remove("open");
+        if (loopInterval) { clearInterval(loopInterval); loopInterval = null; }
+        if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+        currentVideo = null;
+        // Resume normal render
+        render();
+        // Resume game if it was running
+        if (clickPhase > 0) gameActive = true;
+    }
+
+    closeVideoBtn.addEventListener("pointerup", e => { e.stopPropagation(); closeVideo(); });
+
+    // -------------------------------------------------------
+    // RENDER GRID ONLY (for video background)
+    // -------------------------------------------------------
+    function renderGridOnly() {
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0,0,GW,GH);
+        ctx.strokeStyle="#000"; ctx.lineWidth=1;
+        for (let i=1;i<=GRID_LINES;i++) {
+            let x=GW*i/(GRID_LINES+1);
+            ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,GH);ctx.stroke();
         }
-    });
-}
-
-function startYTGame(vid){
-    if(!ytAPIReady){ setTimeout(()=>startYTGame(vid),300); return; }
-    if(videoOpen) closeVideo();
-    isYTGameMode=true; ytGameVideo=vid; gameActive=false; clickPhase=0;
-    setupLayout(); renderGridOnly();
-
-    const makeR=idx=>{ const c=getCenter(idx); return{x:Math.floor(c.x-imgW/2),y:Math.floor(c.y-imgH/2),w:imgW,h:imgH}; };
-    slots.single=makeR(centerIdx); slots.left=makeR(leftIdx); slots.right=makeR(rightIdx);
-
-    buildSlotHTML("ytGameCenter","ytPlayerCenter","cover_center",null);
-    buildSlotHTML("ytGameLeft",  "ytPlayerLeft",  "cover_left",  "ytHitLeft");
-    buildSlotHTML("ytGameRight", "ytPlayerRight", "cover_right", "ytHitRight");
-
-    positionWrap("ytGameCenter",slots.single);
-    positionWrap("ytGameLeft",  slots.left);
-    positionWrap("ytGameRight", slots.right);
-
-    ytGameReadyCount=0;
-    correctSide=Math.random()<0.5?"right":"left";
-    const timeT=vid.start||0;
-    const tdiff=vid.tdiff!==undefined?vid.tdiff:4;
-    const timeT2=timeT+tdiff;
-
-    function slotReady(){
-        ytGameReadyCount++;
-        if(ytGameReadyCount===3) startYTGamePhase1();
-    }
-
-    createFreezePlayer("ytPlayerCenter","center",timeT, vid,slotReady);
-    if(correctSide==="right"){
-        createFreezePlayer("ytPlayerRight","right",timeT, vid,slotReady);
-        createFreezePlayer("ytPlayerLeft", "left", timeT2,vid,slotReady);
-    } else {
-        createFreezePlayer("ytPlayerLeft", "left", timeT, vid,slotReady);
-        createFreezePlayer("ytPlayerRight","right",timeT2,vid,slotReady);
-    }
-
-    document.getElementById("ytHitLeft").onpointerup =e=>handleYTTap("left",e);
-    document.getElementById("ytHitRight").onpointerup=e=>handleYTTap("right",e);
-}
-
-async function startYTGamePhase1(){
-    // All three are ready � make wraps visible, show only center first
-    ["ytGameCenter","ytGameLeft","ytGameRight"].forEach(id=>{
-        document.getElementById(id).style.visibility="visible";
-    });
-    document.getElementById("ytGameLeft").style.display="none";
-    document.getElementById("ytGameRight").style.display="none";
-    document.getElementById("ytGameCenter").style.display="block";
-
-    await sleep(SHOW_SINGLE_MS);
-    document.getElementById("ytGameCenter").style.display="none";
-    await sleep(GAP_BEFORE_PAIR);
-    document.getElementById("ytGameLeft").style.display="block";
-    document.getElementById("ytGameRight").style.display="block";
-    clickPhase=1; gameActive=true;
-}
-
-function handleYTTap(side,e){
-    if(!gameActive||clickPhase!==1) return;
-    e.stopPropagation(); gameActive=false;
-    if(side!==correctSide){
-        document.getElementById("ytGameLeft").style.display="none";
-        document.getElementById("ytGameRight").style.display="none";
-        feedbackText="WRONG\nFRAME"; feedbackVisible=true; renderGridOnly(); drawFeedback(feedbackText);
-        sleep(WRONG_IMG_MS).then(()=>{ feedbackVisible=false; renderGridOnly(); sleep(300).then(()=>startYTGame(ytGameVideo)); });
-    } else {
-        document.getElementById("ytGameLeft").style.display="none";
-        document.getElementById("ytGameRight").style.display="none";
-        document.getElementById("ytGameCenter").style.display="block";
-        sleep(CORRECT_FLASH_MS).then(()=>{ document.getElementById("ytGameCenter").style.display="none"; sleep(300).then(()=>startYTGame(ytGameVideo)); });
-    }
-}
-
-function stopYTGameMode(){
-    isYTGameMode=false;
-    ["ytGameCenter","ytGameLeft","ytGameRight"].forEach(id=>{
-        const el=document.getElementById(id);
-        el.style.display="none"; el.style.visibility="hidden";
-    });
-    ["center","left","right"].forEach(k=>{ if(ytPlayers[k]){ ytPlayers[k].destroy(); ytPlayers[k]=null; } });
-}
-
-const videoWrap=document.getElementById("videoWrap"),closeVideoBtn=document.getElementById("closeVideoBtn");
-let ytPlayer=null,loopInterval=null,seekDebounce=false,currentVideo=null,videoOpen=false;
-
-function positionVideoWrap(){
-    if(!currentVideo) return{ifW:0,ifH:0,ifX:0,ifY:0};
-    const isL=(currentVideo.isLandscape==1||currentVideo.isLandscape===true);
-    let wrapX,wrapY,wrapW,wrapH,ifW,ifH,ifX=0,ifY=0;
-    if(isL){
-        const boxX=cellW,boxY=cellH,boxW=cellW*3,boxH=cellH*3,scale=Math.min(boxW/16,boxH/9);
-        wrapW=Math.floor(16*scale); wrapH=Math.floor(9*scale);
-        wrapX=Math.floor(boxX+(boxW-wrapW)/2); wrapY=Math.floor(boxY+(boxH-wrapH)/2);
-        ifW=wrapW; ifH=wrapH;
-    } else {
-        wrapX=Math.floor(cellW*2); wrapY=Math.floor(cellH); wrapW=Math.floor(cellW); wrapH=Math.floor(cellH*3);
-        ifH=wrapH; ifW=Math.round(ifH*16/9); ifX=Math.round((wrapW-ifW)/2);
-    }
-    videoWrap.style.cssText=`left:${wrapX}px;top:${wrapY}px;width:${wrapW}px;height:${wrapH}px;`;
-    if(ytPlayer&&ytPlayer.getIframe){try{const f=ytPlayer.getIframe();if(f){f.style.position="absolute";f.style.width=ifW+"px";f.style.height=ifH+"px";f.style.left=ifX+"px";f.style.top=ifY+"px";}}catch(e){}}
-    return{ifW,ifH,ifX,ifY};
-}
-
-function openVideo(vid){
-    if(isYTGameMode) stopYTGameMode();
-    currentVideo=vid; videoOpen=true; gameActive=false; setupLayout();
-    const dims=positionVideoWrap(); videoWrap.classList.add("open"); renderGridOnly();
-    if(ytPlayer){ positionVideoWrap(); ytPlayer.loadVideoById({videoId:vid.id,startSeconds:vid.start||0}); vid.mute?ytPlayer.mute():ytPlayer.unMute(); startLoopWatcher(); return; }
-    if(!ytAPIReady){ setTimeout(()=>openVideo(vid),300); return; }
-    ytPlayer=new YT.Player("ytDiv",{width:dims.ifW,height:dims.ifH,videoId:vid.id,
-        playerVars:{autoplay:1,start:vid.start||0,controls:0,rel:0,modestbranding:1,playsinline:1,enablejsapi:1,mute:vid.mute?1:0},
-        events:{
-            onReady(e){ positionVideoWrap(); if(vid.mute)e.target.mute(); e.target.playVideo(); startLoopWatcher(); },
-            onStateChange(e){ if(e.data===YT.PlayerState.ENDED)doSeekLoop(); }
+        for (let i=1;i<=GRID_LINES;i++) {
+            let y=GH*i/(GRID_LINES+1);
+            ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(GW,y);ctx.stroke();
         }
-    });
-}
-function doSeekLoop(){ if(!currentVideo||seekDebounce)return; seekDebounce=true; ytPlayer.seekTo(currentVideo.start||0,true); ytPlayer.playVideo(); setTimeout(()=>{seekDebounce=false;},800); }
-function startLoopWatcher(){ if(loopInterval)clearInterval(loopInterval); loopInterval=setInterval(()=>{ if(!videoOpen||!ytPlayer||typeof ytPlayer.getCurrentTime!=="function")return; try{if(!currentVideo||!currentVideo.end)return;const t=ytPlayer.getCurrentTime();if(!seekDebounce&&t>=currentVideo.end)doSeekLoop();}catch(e){}},250); }
-function closeVideo(){ videoOpen=false; videoWrap.classList.remove("open"); if(loopInterval){clearInterval(loopInterval);loopInterval=null;} if(ytPlayer&&ytPlayer.pauseVideo)ytPlayer.pauseVideo(); currentVideo=null; render(); }
-closeVideoBtn.addEventListener("pointerup",e=>{e.stopPropagation();closeVideo();});
-
-function renderGridOnly(){
-    ctx.fillStyle=bgColor; ctx.fillRect(0,0,GW,GH);
-    ctx.strokeStyle="#000"; ctx.lineWidth=1;
-    for(let i=1;i<=GRID_LINES;i++){const x=GW*i/(GRID_LINES+1);ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,GH);ctx.stroke();}
-    for(let i=1;i<=GRID_LINES;i++){const y=GH*i/(GRID_LINES+1);ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(GW,y);ctx.stroke();}
-}
-function drawImg(img,r){ctx.save();ctx.beginPath();ctx.rect(r.x,r.y,r.w,r.h);ctx.clip();ctx.drawImage(img,r.x,r.y,r.w,r.h);ctx.restore();ctx.strokeStyle="#333";ctx.lineWidth=2;ctx.strokeRect(r.x,r.y,r.w,r.h);}
-function drawBigImg(img,r){ctx.drawImage(img,r.x,r.y,r.w,r.h);ctx.strokeStyle="#333";ctx.lineWidth=2;ctx.strokeRect(r.x,r.y,r.w,r.h);}
-function drawHint(img,regionIdx){const c=getCenter(regionIdx);const tw=Math.floor(imgW*0.20),th=Math.floor(imgH*0.20);const tx=Math.floor(c.x-tw/2),ty=Math.floor(c.y-th/2);ctx.drawImage(img,tx,ty,tw,th);ctx.strokeStyle="rgba(0,0,0,0.6)";ctx.lineWidth=1;ctx.strokeRect(tx,ty,tw,th);}
-function drawFittedLabel(text,cx,cy,maxW,maxH,bg,fg){let pad=10,fs=Math.floor(maxH*0.275);ctx.font="bold "+fs+"px Arial";while(fs>4&&ctx.measureText(text).width>maxW-pad*2){fs--;ctx.font="bold "+fs+"px Arial";}const tw=ctx.measureText(text).width,bw=tw+pad*2,bh=fs+pad*2;const bx=Math.max(2,Math.min(cx-bw/2,GW-bw-2)),by=Math.max(2,Math.min(cy-bh/2,GH-bh-2));ctx.fillStyle=bg;ctx.beginPath();if(ctx.roundRect)ctx.roundRect(bx,by,bw,bh,6);else ctx.rect(bx,by,bw,bh);ctx.fill();ctx.fillStyle=fg;ctx.fillText(text,bx+pad,by+pad+fs*0.85);}
-function drawFeedback(text){const fs=Math.max(12,Math.floor(GH/10));ctx.font="bold "+fs+"px Arial";const lines=text.split("\n");let maxW=0;lines.forEach(l=>{const m=ctx.measureText(l).width;if(m>maxW)maxW=m;});const pad=24,bw=maxW+pad*2,bh=(fs+10)*lines.length+pad*2;const bx=GW/2-bw/2,by=GH/2-bh/2;ctx.fillStyle="rgba(255,60,60,0.97)";ctx.beginPath();if(ctx.roundRect)ctx.roundRect(bx,by,bw,bh,10);else ctx.rect(bx,by,bw,bh);ctx.fill();ctx.fillStyle="#fff";lines.forEach((l,i)=>ctx.fillText(l,GW/2-ctx.measureText(l).width/2,by+pad+fs*0.85+i*(fs+10)));}
-function render(){
-    if(videoOpen||isYTGameMode){renderGridOnly();return;}
-    renderGridOnly();
-    ["single","left","right"].forEach(k=>{if(slotVis[k]&&slotImg[k]&&slots[k])drawImg(slotImg[k],slots[k]);});
-    if(bigVis&&bigImg&&bigSlot)drawBigImg(bigImg,bigSlot);
-    if(hintVisible&&hintImg)drawHint(hintImg,hintRegion);
-    if(nameBelowVisible){const z=getLabelZone();drawFittedLabel(nameBelowText,z.cx,z.cy,z.zoneW,z.zoneH,"rgba(60,180,60,0.97)","#fff");}
-    if(feedbackVisible)drawFeedback(feedbackText);
-}
-
-function setupLayout(){
-    const pw=window.innerWidth,ph=window.innerHeight;
-    isPortrait=pw<ph; bgColor=Math.min(pw,ph)<600?"#7ab8e8":"#ffffff";
-    if(isPortrait){GW=ph;GH=pw;canvas.width=GW;canvas.height=GH;wrap.style.width=GW+"px";wrap.style.height=GH+"px";wrap.style.transformOrigin="0 0";wrap.style.transform="rotate(90deg) translateY(-"+pw+"px)";}
-    else{GW=pw;GH=ph;canvas.width=GW;canvas.height=GH;wrap.style.width=GW+"px";wrap.style.height=GH+"px";wrap.style.transformOrigin="0 0";wrap.style.transform="none";}
-    cellW=GW/GRID_COLS; cellH=GH/GRID_ROWS;
-    const maxW=cellW-IMG_PAD*2,maxH=cellH-IMG_PAD*2;
-    if(maxW*9/16<=maxH){imgW=Math.floor(maxW);imgH=Math.floor(maxW*9/16);}else{imgH=Math.floor(maxH);imgW=Math.floor(maxH*16/9);}
-    updateMenuPosition();
-    if(videoOpen) positionVideoWrap();
-}
-function getCenter(idx){const row=Math.floor((idx-1)/GRID_COLS)+1,col=((idx-1)%GRID_COLS)+1;return{x:(col-0.5)*cellW,y:(row-0.5)*cellH};}
-function getRegion(gx,gy){const col=Math.floor(gx/cellW)+1,row=Math.floor(gy/cellH)+1;if(col<1||col>GRID_COLS||row<1||row>GRID_ROWS)return 0;return(row-1)*GRID_COLS+col;}
-function makeSlot(idx){const c=getCenter(idx);return{x:Math.floor(c.x-imgW/2),y:Math.floor(c.y-imgH/2),w:imgW,h:imgH};}
-function makeBigSlot(img){const boxX=cellW,boxY=cellH,boxW=cellW*3,boxH=cellH*3;const iw=img.naturalWidth||boxW,ih=img.naturalHeight||boxH;const scale=Math.min(boxW/iw,boxH/ih);const dw=Math.floor(iw*scale),dh=Math.floor(ih*scale);return{x:Math.floor(boxX+(boxW-dw)/2),y:Math.floor(boxY+(boxH-dh)/2),w:dw,h:dh};}
-function getLabelZone(){return{cx:cellW*2.5,cy:cellH*4.5,zoneW:cellW*3,zoneH:cellH};}
-function toGame(px,py){if(isPortrait)return{x:py,y:window.innerWidth-px};return{x:px,y:py};}
-
-function collapseAllMenus(){playExpanded=ytimgExpanded=false;document.querySelectorAll(".video-sub,.ytimg-sub").forEach(el=>el.classList.remove("visible"));}
-function closeMenu(){collapseAllMenus();menuPanel.classList.remove("open");menuBtn.classList.remove("open");}
-function updateMenuPosition(){const PAD=14;if(isPortrait){menuWrap.classList.add("portrait-mode");menuWrap.style.bottom=PAD+"px";menuWrap.style.left=PAD+"px";menuWrap.style.right="auto";}else{menuWrap.classList.remove("portrait-mode");menuWrap.style.bottom=PAD+"px";menuWrap.style.right=PAD+"px";menuWrap.style.left="auto";}}
-
-function buildVideoMenus(){
-    document.querySelectorAll(".video-sub,.ytimg-sub").forEach(el=>el.remove());
-    let aP=document.getElementById("miPlay"),aY=document.getElementById("miYTasImage");
-    allVideos.forEach((vid,i)=>{
-        const eP=document.createElement("div"); eP.className="video-sub"; eP.textContent="  > "+(vid.label||"Video "+(i+1));
-        eP.addEventListener("pointerup",e=>{e.stopPropagation();collapseAllMenus();closeMenu();openVideo(vid);});
-        aP.parentNode.insertBefore(eP,aP.nextSibling); aP=eP;
-        const eY=document.createElement("div"); eY.className="ytimg-sub"; eY.textContent="  > "+(vid.label||"Video "+(i+1));
-        eY.addEventListener("pointerup",e=>{e.stopPropagation();collapseAllMenus();closeMenu();startYTGame(vid);});
-        aY.parentNode.insertBefore(eY,aY.nextSibling); aY=eY;
-    });
-}
-function buildMenuItems(){
-    document.querySelectorAll(".menu-set-item").forEach(el=>el.remove());
-    allSets.forEach((set,i)=>{
-        const el=document.createElement("div"); el.className="menu-item menu-set-item"+(i===activeSetIndex?" active-set":"");
-        el.textContent=(i===activeSetIndex?"+ ":"  ")+set.name;
-        el.addEventListener("pointerup",e=>{e.stopPropagation();switchSet(i);}); menuPanel.appendChild(el);
-    });
-}
-
-document.getElementById("miPlay").addEventListener("pointerup",e=>{e.stopPropagation();if(playExpanded)collapseAllMenus();else{collapseAllMenus();playExpanded=true;document.querySelectorAll(".video-sub").forEach(el=>el.classList.add("visible"));menuPanel.scrollTop=0;}});
-document.getElementById("miYTasImage").addEventListener("pointerup",e=>{e.stopPropagation();if(ytimgExpanded)collapseAllMenus();else{collapseAllMenus();ytimgExpanded=true;document.querySelectorAll(".ytimg-sub").forEach(el=>el.classList.add("visible"));menuPanel.scrollTop=0;}});
-document.getElementById("miConfig").addEventListener("pointerup",e=>{e.stopPropagation();closeMenu();alert("Config - coming soon");});
-document.getElementById("miHelp").addEventListener("pointerup",e=>{e.stopPropagation();closeMenu();alert("Help - coming soon");});
-menuBtn.addEventListener("pointerup",e=>{e.stopPropagation();const isOpen=menuPanel.classList.toggle("open");menuBtn.classList.toggle("open",isOpen);if(!isOpen)collapseAllMenus();});
-menuPanel.addEventListener("pointerup",e=>e.stopPropagation());
-document.addEventListener("pointerup",e=>{if(menuPanel.classList.contains("open")){closeMenu();return;}if(isYTGameMode)return;handleTap(e.clientX,e.clientY);});
-
-function playAudio(idx){return new Promise(resolve=>{if(currentAudio){currentAudio.pause();currentAudio.currentTime=0;}const src=AUDIO_FILES[idx];if(!src){resolve();return;}currentAudio=new Audio(src);currentAudio.onended=resolve;currentAudio.onerror=resolve;currentAudio.play().catch(resolve);});}
-function preloadImages(cb){if(!IMAGE_URLS.length){cb();return;}loadedImages=new Array(IMAGE_URLS.length);let n=0;IMAGE_URLS.forEach((url,i)=>{const img=new Image();img.onload=img.onerror=()=>{if(++n===IMAGE_URLS.length)cb();};img.src=url;loadedImages[i]=img;});}
-function loadSet(set,cb){IMAGE_URLS=set.items.map(it=>`${set.folder}/${it.base}.jpg`);IMAGE_NAMES=set.items.map(it=>it.label);AUDIO_FILES=set.items.map(it=>`${set.folder}/${it.base}.mp3`);loadedImages=[];preloadImages(cb);}
-function switchSet(i){closeMenu();if(i===activeSetIndex&&!isYTGameMode)return;if(isYTGameMode)stopYTGameMode();activeSetIndex=i;gameActive=false;if(videoOpen)closeVideo();buildMenuItems();loadSet(allSets[i],()=>{setupLayout();render();phaseOne();});}
-
-async function phaseOne(){
-    gameActive=false;clickPhase=0;setupLayout();bigVis=false;bigImg=null;bigSlot=null;nameBelowVisible=false;hintVisible=false;feedbackVisible=false;
-    let i1=rnd(IMAGE_URLS.length),i2=rnd(IMAGE_URLS.length);while(i2===i1)i2=rnd(IMAGE_URLS.length);
-    correctImgIndex=i1;correctImgName=IMAGE_NAMES[i1];correctRegion=Math.floor(Math.random()*GRID_ROWS*GRID_COLS)+1;
-    slots.single=makeSlot(centerIdx);slotImg.single=loadedImages[i1];slotVis.single=true;slotVis.left=false;slotVis.right=false;
-    hintImg=loadedImages[i1];hintRegion=correctRegion;hintVisible=true;
-    render();await sleep(SHOW_SINGLE_MS);slotVis.single=false;hintVisible=false;render();await sleep(GAP_BEFORE_PAIR);
-    if(Math.random()<0.5){slotImg.left=loadedImages[i2];slotImg.right=loadedImages[i1];correctSide="right";}else{slotImg.left=loadedImages[i1];slotImg.right=loadedImages[i2];correctSide="left";}
-    slots.left=makeSlot(leftIdx);slots.right=makeSlot(rightIdx);slotVis.left=slotVis.right=true;render();clickPhase=1;gameActive=true;
-}
-async function handleCorrectLocation(){
-    slotVis.left=false;slotVis.right=false;const img=loadedImages[correctImgIndex];bigSlot=makeBigSlot(img);bigImg=img;bigVis=true;nameBelowText=correctImgName;nameBelowVisible=true;render();
-    await playAudio(correctImgIndex);await sleep(CORRECT_FLASH_MS);bigVis=false;nameBelowVisible=false;render();await sleep(300);phaseOne();
-}
-function hitTest(gx,gy,r){return r&&gx>=r.x&&gx<=r.x+r.w&&gy>=r.y&&gy<=r.y+r.h;}
-function handleTap(px,py){
-    if(!gameActive||videoOpen||isYTGameMode)return;
-    const g=toGame(px,py),gx=g.x,gy=g.y;
-    if(clickPhase===1){
-        const hl=hitTest(gx,gy,slots.left),hr=hitTest(gx,gy,slots.right);if(!hl&&!hr)return;
-        gameActive=false;const side=hl?"left":"right";
-        if(side!==correctSide){slotVis.left=slotVis.right=false;feedbackText="WRONG\nIMAGE";feedbackVisible=true;render();sleep(WRONG_IMG_MS).then(()=>{feedbackVisible=false;render();sleep(300).then(phaseOne);});}
-        else{if(side==="left")slotVis.right=false;else slotVis.left=false;render();clickPhase=2;gameActive=true;}
-    } else if(clickPhase===2){
-        gameActive=false;const region=getRegion(gx,gy);
-        if(region===correctRegion)handleCorrectLocation();
-        else{slotVis.left=slotVis.right=false;feedbackText="WRONG";feedbackVisible=true;render();sleep(INCORRECT_MS).then(()=>{feedbackVisible=false;render();sleep(300).then(phaseOne);});}
     }
-}
 
-window.addEventListener("resize",()=>{setupLayout();render();});
-window.addEventListener("orientationchange",()=>{setTimeout(()=>{setupLayout();render();},350);});
+    // -------------------------------------------------------
+    // MENU
+    // -------------------------------------------------------
+    function buildMenuItems() {
+        document.querySelectorAll(".menu-set-item").forEach(el => el.remove());
+        allSets.forEach((set, i) => {
+            let el = document.createElement("div");
+            el.className = "menu-item menu-set-item" +
+                           (i === activeSetIndex ? " active-set" : "");
+            el.textContent = (i === activeSetIndex ? "  " : "     ") + set.name;
+            el.addEventListener("pointerup", e => { e.stopPropagation(); switchSet(i); });
+            menuPanel.appendChild(el);
+        });
+    }
 
-Promise.all([
-    fetch("assets.json?v="+Date.now()).then(r=>r.json()),
-    fetch("yt.json?v="+Date.now()).then(r=>r.json()).catch(()=>({videos:[]}))
-]).then(([assetData,ytData])=>{
-    allSets=assetData.sets||[]; allVideos=ytData.videos||[];
-    if(!allSets.length) throw new Error("No sets in assets.json");
-    activeSetIndex=0; buildMenuItems(); buildVideoMenus();
-    loadSet(allSets[0],()=>{setupLayout();render();phaseOne();});
-}).catch(err=>{
-    console.error(err); setupLayout();
-    ctx.fillStyle="#fff"; ctx.fillRect(0,0,GW||400,GH||300);
-    ctx.fillStyle="#c00"; ctx.font="bold 18px Arial";
-    ctx.fillText("Error: "+err.message,20,(GH||300)/2);
-});
+    function closeMenu() {
+        collapseVideoList();
+        menuPanel.classList.remove("open");
+        menuBtn.classList.remove("open");
+    }
+
+    menuBtn.addEventListener("pointerup", e => {
+        e.stopPropagation();
+        let isOpen = menuPanel.classList.toggle("open");
+        menuBtn.classList.toggle("open", isOpen);
+        if (!isOpen) collapseVideoList();
+    });
+    menuPanel.addEventListener("pointerup", e => e.stopPropagation());
+
+    document.getElementById("miPlay").addEventListener("pointerup", e => {
+        e.stopPropagation();
+        toggleVideoList();
+    });
+    document.getElementById("miConfig").addEventListener("pointerup", e => {
+        e.stopPropagation(); closeMenu(); alert("Config — coming soon");
+    });
+    document.getElementById("miHelp").addEventListener("pointerup", e => {
+        e.stopPropagation(); closeMenu(); alert("Help — coming soon");
+    });
+
+    function handleDocPointerUp(e) {
+        if (menuPanel.classList.contains("open")) { closeMenu(); return; }
+        handleTap(e.clientX, e.clientY);
+    }
+    document.addEventListener("pointerup", handleDocPointerUp);
+
+    // -------------------------------------------------------
+    // LAYOUT
+    // -------------------------------------------------------
+    function setupLayout() {
+        let pw = window.innerWidth;
+        let ph = window.innerHeight;
+        isPortrait = pw < ph;
+        let isMobile = Math.min(pw, ph) < 600;
+        bgColor = isMobile ? "#7ab8e8" : "#ffffff";
+
+        if (isPortrait) {
+            GW = ph; GH = pw;
+            canvas.width  = GW; canvas.height = GH;
+            wrap.style.width  = GW + "px";
+            wrap.style.height = GH + "px";
+            wrap.style.transformOrigin = "0 0";
+            wrap.style.transform = "rotate(90deg) translateY(-" + pw + "px)";
+        } else {
+            GW = pw; GH = ph;
+            canvas.width  = GW; canvas.height = GH;
+            wrap.style.width  = GW + "px";
+            wrap.style.height = GH + "px";
+            wrap.style.transformOrigin = "0 0";
+            wrap.style.transform = "none";
+        }
+
+        cellW = GW / GRID_COLS;
+        cellH = GH / GRID_ROWS;
+
+        let maxW = cellW - IMG_PAD * 2;
+        let maxH = cellH - IMG_PAD * 2;
+        if (maxW * 9 / 16 <= maxH) {
+            imgW = Math.floor(maxW); imgH = Math.floor(maxW * 9 / 16);
+        } else {
+            imgH = Math.floor(maxH); imgW = Math.floor(maxH * 16 / 9);
+        }
+
+        if (videoWrap.classList.contains("open")) positionVideoWrap();
+    }
+
+    function toGame(px, py) {
+        if (isPortrait) return { x: py, y: window.innerWidth - px };
+        return { x: px, y: py };
+    }
+
+    function getCenter(idx) {
+        let row = Math.floor((idx-1)/GRID_COLS)+1;
+        let col = ((idx-1)%GRID_COLS)+1;
+        return { x:(col-0.5)*cellW, y:(row-0.5)*cellH };
+    }
+
+    function getRegion(gx, gy) {
+        let col = Math.floor(gx/cellW)+1;
+        let row = Math.floor(gy/cellH)+1;
+        if (col<1||col>GRID_COLS||row<1||row>GRID_ROWS) return 0;
+        return (row-1)*GRID_COLS+col;
+    }
+
+    let centerIdx = ((Math.ceil(GRID_ROWS/2)-1)*GRID_COLS)+Math.ceil(GRID_COLS/2);
+    let leftIdx   = centerIdx - 1;
+    let rightIdx  = centerIdx + 1;
+
+    function makeSlot(idx) {
+        let c = getCenter(idx);
+        return { x:Math.floor(c.x-imgW/2), y:Math.floor(c.y-imgH/2), w:imgW, h:imgH };
+    }
+
+    function makeBigSlot(img) {
+        let boxX=cellW, boxY=cellH, boxW=cellW*3, boxH=cellH*3;
+        let iw=img.naturalWidth||img.width||boxW;
+        let ih=img.naturalHeight||img.height||boxH;
+        let scale=Math.min(boxW/iw, boxH/ih);
+        let dw=Math.floor(iw*scale), dh=Math.floor(ih*scale);
+        return { x:Math.floor(boxX+(boxW-dw)/2), y:Math.floor(boxY+(boxH-dh)/2), w:dw, h:dh };
+    }
+
+    function getLabelZone() {
+        return { cx:cellW*2.5, cy:cellH*4.5, zoneW:cellW*3, zoneH:cellH };
+    }
+
+    // -------------------------------------------------------
+    // DRAWING
+    // -------------------------------------------------------
+    function drawImg(img, r) {
+        ctx.save();
+        ctx.beginPath(); ctx.rect(r.x,r.y,r.w,r.h); ctx.clip();
+        ctx.drawImage(img, r.x,r.y,r.w,r.h);
+        ctx.restore();
+        ctx.strokeStyle="#333"; ctx.lineWidth=2;
+        ctx.strokeRect(r.x,r.y,r.w,r.h);
+    }
+
+    function drawBigImg(img, r) {
+        ctx.drawImage(img, r.x,r.y,r.w,r.h);
+        ctx.strokeStyle="#333"; ctx.lineWidth=2;
+        ctx.strokeRect(r.x,r.y,r.w,r.h);
+    }
+
+    function drawHint(img, regionIdx) {
+        let c  = getCenter(regionIdx);
+        let tw = Math.floor(imgW * 0.20);
+        let th = Math.floor(imgH * 0.20);
+        let tx = Math.floor(c.x - tw / 2);
+        let ty = Math.floor(c.y - th / 2);
+        ctx.drawImage(img, tx, ty, tw, th);
+        ctx.strokeStyle="rgba(0,0,0,0.6)"; ctx.lineWidth=1;
+        ctx.strokeRect(tx, ty, tw, th);
+    }
+
+    function drawFittedLabel(text, cx, cy, maxW, maxH, bg, fg) {
+        let pad=10, fs=Math.floor(maxH*0.275);
+        ctx.font="bold "+fs+"px Arial";
+        while (fs>4 && ctx.measureText(text).width>maxW-pad*2) {
+            fs--; ctx.font="bold "+fs+"px Arial";
+        }
+        let tw=ctx.measureText(text).width;
+        let bw=tw+pad*2, bh=fs+pad*2;
+        let bx=Math.max(2,Math.min(cx-bw/2,GW-bw-2));
+        let by=Math.max(2,Math.min(cy-bh/2,GH-bh-2));
+        ctx.fillStyle=bg; ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(bx,by,bw,bh,6); else ctx.rect(bx,by,bw,bh);
+        ctx.fill(); ctx.fillStyle=fg;
+        ctx.fillText(text,bx+pad,by+pad+fs*0.85);
+    }
+
+    function drawFeedback(text) {
+        let fs=Math.max(12,Math.floor(GH/10));
+        ctx.font="bold "+fs+"px Arial";
+        let lines=text.split("\\n"), maxW=0;
+        lines.forEach(l=>{let m=ctx.measureText(l).width;if(m>maxW)maxW=m;});
+        let pad=24, bw=maxW+pad*2, bh=(fs+10)*lines.length+pad*2;
+        let bx=GW/2-bw/2, by=GH/2-bh/2;
+        ctx.fillStyle="rgba(255,60,60,0.97)"; ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(bx,by,bw,bh,10); else ctx.rect(bx,by,bw,bh);
+        ctx.fill(); ctx.fillStyle="#fff";
+        lines.forEach((l,i)=>ctx.fillText(l,GW/2-ctx.measureText(l).width/2,
+            by+pad+fs*0.85+i*(fs+10)));
+    }
+
+    function render() {
+        // While video is open just keep the grid visible, no game images
+        if (videoOpen) { renderGridOnly(); return; }
+        ctx.fillStyle=bgColor; ctx.fillRect(0,0,GW,GH);
+        ctx.strokeStyle="#000"; ctx.lineWidth=1;
+        for (let i=1;i<=GRID_LINES;i++) {
+            let x=GW*i/(GRID_LINES+1);
+            ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,GH);ctx.stroke();
+        }
+        for (let i=1;i<=GRID_LINES;i++) {
+            let y=GH*i/(GRID_LINES+1);
+            ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(GW,y);ctx.stroke();
+        }
+        ["single","left","right"].forEach(k=>{
+            if(slotVis[k]&&slotImg[k]&&slots[k]) drawImg(slotImg[k],slots[k]);
+        });
+        if (bigVis&&bigImg&&bigSlot) drawBigImg(bigImg,bigSlot);
+        if (hintVisible&&hintImg) drawHint(hintImg,hintRegion);
+        if (nameBelowVisible) {
+            let z=getLabelZone();
+            drawFittedLabel(nameBelowText,z.cx,z.cy,z.zoneW,z.zoneH,"rgba(60,180,60,0.97)","#fff");
+        }
+        if (feedbackVisible) drawFeedback(feedbackText);
+    }
+
+    // -------------------------------------------------------
+    // AUDIO
+    // -------------------------------------------------------
+    function playAudio(idx) {
+        return new Promise(resolve => {
+            if (currentAudio) { currentAudio.pause(); currentAudio.currentTime=0; }
+            let src=AUDIO_FILES[idx];
+            if (!src) { resolve(); return; }
+            currentAudio=new Audio(src);
+            currentAudio.onended=resolve; currentAudio.onerror=resolve;
+            currentAudio.play().catch(resolve);
+        });
+    }
+
+    function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+    function rnd(n)    { return Math.floor(Math.random()*n); }
+
+    // -------------------------------------------------------
+    // ASSET LOADING
+    // -------------------------------------------------------
+    function preloadImages(cb) {
+        if (!IMAGE_URLS.length) { cb(); return; }
+        loadedImages=new Array(IMAGE_URLS.length);
+        let n=0;
+        IMAGE_URLS.forEach((url,i)=>{
+            let img=new Image();
+            img.onload=img.onerror=()=>{ if(++n===IMAGE_URLS.length) cb(); };
+            img.src=url; loadedImages[i]=img;
+        });
+    }
+
+    function loadSet(set,cb) {
+        IMAGE_URLS  = set.items.map(it=>`${set.folder}/${it.base}.jpg`);
+        IMAGE_NAMES = set.items.map(it=>it.label);
+        AUDIO_FILES = set.items.map(it=>`${set.folder}/${it.base}.mp3`);
+        loadedImages=[];
+        preloadImages(cb);
+    }
+
+    function switchSet(i) {
+        closeMenu();
+        if (i===activeSetIndex) return;
+        activeSetIndex=i; gameActive=false;
+        buildMenuItems();
+        loadSet(allSets[i],()=>{ setupLayout(); render(); phaseOne(); });
+    }
+
+    // -------------------------------------------------------
+    // GAME
+    // -------------------------------------------------------
+    async function phaseOne() {
+        gameActive=false; clickPhase=0;
+        setupLayout();
+        bigVis=false; bigImg=null; bigSlot=null;
+        nameBelowVisible=false; hintVisible=false; feedbackVisible=false;
+
+        let i1=rnd(IMAGE_URLS.length), i2=rnd(IMAGE_URLS.length);
+        while (i2===i1) i2=rnd(IMAGE_URLS.length);
+
+        correctImgIndex=i1; correctImgName=IMAGE_NAMES[i1];
+        correctRegion=Math.floor(Math.random()*GRID_ROWS*GRID_COLS)+1;
+
+        slots.single=makeSlot(centerIdx); slotImg.single=loadedImages[i1];
+        slotVis.single=true; slotVis.left=false; slotVis.right=false;
+        hintImg=loadedImages[i1]; hintRegion=correctRegion; hintVisible=true;
+        render(); await sleep(SHOW_SINGLE_MS);
+
+        slotVis.single=false; hintVisible=false; render();
+        await sleep(GAP_BEFORE_PAIR);
+
+        if (Math.random()<0.5) {
+            slotImg.left=loadedImages[i2]; slotImg.right=loadedImages[i1]; correctSide="right";
+        } else {
+            slotImg.left=loadedImages[i1]; slotImg.right=loadedImages[i2]; correctSide="left";
+        }
+        slots.left=makeSlot(leftIdx); slots.right=makeSlot(rightIdx);
+        slotVis.left=slotVis.right=true;
+        render(); clickPhase=1; gameActive=true;
+    }
+
+    async function handleCorrectLocation() {
+        slotVis.left=false; slotVis.right=false;
+        let img=loadedImages[correctImgIndex];
+        bigSlot=makeBigSlot(img); bigImg=img; bigVis=true;
+        nameBelowText=correctImgName; nameBelowVisible=true;
+        render();
+        await playAudio(correctImgIndex);
+        await sleep(CORRECT_FLASH_MS);
+        bigVis=false; nameBelowVisible=false;
+        render(); await sleep(300); phaseOne();
+    }
+
+    function hitTest(gx,gy,r) { return r&&gx>=r.x&&gx<=r.x+r.w&&gy>=r.y&&gy<=r.y+r.h; }
+
+    function handleTap(px,py) {
+        if (!gameActive) return;
+        if (videoOpen) return;
+        let g=toGame(px,py), gx=g.x, gy=g.y;
+        if (clickPhase===1) {
+            let hl=hitTest(gx,gy,slots.left), hr=hitTest(gx,gy,slots.right);
+            if (!hl&&!hr) return;
+            gameActive=false;
+            let side=hl?"left":"right";
+            if (side!==correctSide) {
+                slotVis.left=slotVis.right=false;
+                feedbackText="WRONG\\nIMAGE"; feedbackVisible=true; render();
+                sleep(WRONG_IMG_MS).then(()=>{feedbackVisible=false;render();sleep(300).then(phaseOne);});
+            } else {
+                if (side==="left") slotVis.right=false; else slotVis.left=false;
+                render(); clickPhase=2; gameActive=true;
+            }
+        } else if (clickPhase===2) {
+            gameActive=false;
+            let region=getRegion(gx,gy);
+            if (region===correctRegion) {
+                handleCorrectLocation();
+            } else {
+                slotVis.left=slotVis.right=false;
+                feedbackText="WRONG"; feedbackVisible=true; render();
+                sleep(INCORRECT_MS).then(()=>{feedbackVisible=false;render();sleep(300).then(phaseOne);});
+            }
+        }
+    }
+
+    window.addEventListener("resize",()=>{ setupLayout(); render(); });
+    window.addEventListener("orientationchange",()=>{ setTimeout(()=>{ setupLayout(); render(); },350); });
+
+    // -------------------------------------------------------
+    // STARTUP
+    // -------------------------------------------------------
+    Promise.all([
+        fetch("assets.json?v="  + Date.now()).then(r=>r.json()),
+        fetch("youtube.json?v=" + Date.now()).then(r=>r.json()).catch(()=>({videos:[]}))
+    ]).then(([assetData, ytData]) => {
+        allSets   = assetData.sets || [];
+        allVideos = ytData.videos  || [];
+        if (!allSets.length) throw new Error("No sets in assets.json");
+        activeSetIndex=0;
+        buildMenuItems();
+        buildVideoMenu();
+        loadSet(allSets[0],()=>{ setupLayout(); render(); phaseOne(); });
+    }).catch(err=>{
+        console.error("Startup error:",err);
+        setupLayout();
+        ctx.fillStyle="#fff"; ctx.fillRect(0,0,GW||400,GH||300);
+        ctx.fillStyle="#c00"; ctx.font="bold 18px Arial";
+        ctx.fillText("Error: "+err.message,20,(GH||300)/2);
+    });
 </script>
 </body>
 </html>
