@@ -50,6 +50,16 @@ html, body { overflow: hidden; touch-action: manipulation; background: #000; }
 .menu-item:hover, .menu-item:active { background: rgba(255,255,255,0.12); }
 .menu-item.active-set { color: #6f6; }
 .menu-divider { height: 1px; background: rgba(255,255,255,0.15); margin: 2px 0; flex-shrink: 0; }
+
+#versionBtn {
+    position: fixed; z-index: 999;
+    background: rgba(30,30,30,0.82); border: none; border-radius: 10px;
+    color: rgba(255,255,255,0.75); font: bold 12px Arial, sans-serif;
+    padding: 0 10px; height: 48px; cursor: default;
+    display: flex; align-items: center; justify-content: center;
+    white-space: nowrap; pointer-events: none;
+}
+#versionBtn.portrait-mode { transform: rotate(90deg); transform-origin: 24px 24px; }
 </style>
 </head>
 <body>
@@ -57,6 +67,8 @@ html, body { overflow: hidden; touch-action: manipulation; background: #000; }
 <div id="rotateWrap">
     <canvas id="gameCanvas"></canvas>
 </div>
+
+<div id="versionBtn">v1.1</div>
 
 <div id="menuWrap">
     <div id="menuPanel">
@@ -151,7 +163,7 @@ function drawFeedback(text) {
 function render() {
     ctx.fillStyle = "#111"; ctx.fillRect(0, 0, GW, GH);
     // grid lines
-    ctx.strokeStyle = "#222"; ctx.lineWidth = 1;
+    ctx.strokeStyle = "#555"; ctx.lineWidth = 1.5;
     for (let c = 1; c < GRID_COLS; c++) { ctx.beginPath(); ctx.moveTo(c*cellW, 0); ctx.lineTo(c*cellW, GH); ctx.stroke(); }
     for (let r = 1; r < GRID_ROWS; r++) { ctx.beginPath(); ctx.moveTo(0, r*cellH); ctx.lineTo(GW, r*cellH); ctx.stroke(); }
     if (slotVis.single && slotImg.single) drawImg(slotImg.single, slots.single);
@@ -212,13 +224,18 @@ function toGame(px, py) { if (isPortrait) return {x:py, y:window.innerWidth-px};
 // -- hamburger menu --------------------------------------------------------
 function closeMenu() { menuPanel.classList.remove("open"); menuBtn.classList.remove("open"); }
 function updateMenuPosition() {
-    const PAD = 14;
+    const PAD = 14, BTN = 48, GAP = 8;
+    const vBtn = document.getElementById("versionBtn");
     if (isPortrait) {
         menuWrap.classList.add("portrait-mode");
         menuWrap.style.bottom = PAD + "px"; menuWrap.style.left = PAD + "px"; menuWrap.style.right = "auto";
+        vBtn.classList.add("portrait-mode");
+        vBtn.style.bottom = (PAD + BTN + GAP) + "px"; vBtn.style.left = PAD + "px"; vBtn.style.right = "auto";
     } else {
         menuWrap.classList.remove("portrait-mode");
         menuWrap.style.bottom = PAD + "px"; menuWrap.style.right = PAD + "px"; menuWrap.style.left = "auto";
+        vBtn.classList.remove("portrait-mode");
+        vBtn.style.bottom = PAD + "px"; vBtn.style.right = (PAD + BTN + GAP) + "px"; vBtn.style.left = "auto";
     }
 }
 function buildMenuItems() {
@@ -234,7 +251,7 @@ function buildMenuItems() {
 
 document.getElementById("miHelp").addEventListener("pointerup", e => {
     e.stopPropagation(); closeMenu();
-    alert("Brain Training\n\n1. A single image flashes briefly in the grid.\n2. A small hint shows where it appeared.\n3. Two images appear side by side — tap the correct one.\n4. Then tap the grid cell where the image was shown.");
+    alert("Brain Training\n\n1. A single image appears in Location 1 (the center).\n2. Simultaneously, another image or text appears at Location 2.\n3. When two images appear side by side, click the image that appeared in the center, then click Location 2.\n4. After your feedback, the game repeats.");
 });
 menuBtn.addEventListener("pointerup", e => {
     e.stopPropagation();
@@ -290,7 +307,9 @@ async function phaseOne() {
     let i1 = rnd(IMAGE_URLS.length), i2 = rnd(IMAGE_URLS.length);
     while (i2 === i1) i2 = rnd(IMAGE_URLS.length);
     correctImgIndex = i1; correctImgName = IMAGE_NAMES[i1];
-    correctRegion = Math.floor(Math.random() * GRID_ROWS * GRID_COLS) + 1;
+    do {
+        correctRegion = Math.floor(Math.random() * GRID_ROWS * GRID_COLS) + 1;
+    } while (correctRegion === centerIdx);
     slots.single = makeSlot(centerIdx); slotImg.single = loadedImages[i1]; slotVis.single = true;
     slotVis.left = false; slotVis.right = false;
     hintImg = loadedImages[i1]; hintRegion = correctRegion; hintVisible = true;
